@@ -25,8 +25,8 @@
     <section class="side-panel">
       <div class="trip-heading">
         <p class="eyebrow">YOUR JOURNEY</p>
-        <input id="tripTitle" class="title-input editor-control" value="我的新行程" aria-label="行程名稱">
-        <h1 id="viewTitle" class="view-title">我的新行程</h1>
+        <input id="tripTitle" class="title-input editor-control" value="" aria-label="旅程名稱" placeholder="請先新增或載入旅程">
+        <h1 id="viewTitle" class="view-title">尚未選擇旅程</h1>
         <div class="date-row">
           <label><span>開始</span><input id="startDate" class="editor-control" type="date"></label>
           <label><span>結束</span><input id="endDate" class="editor-control" type="date"></label>
@@ -35,11 +35,15 @@
       </div>
 
       <div class="toolbar editor-only">
-        <button id="addStopBtn" class="btn primary" type="button">＋ 新增地點</button>
+        <button id="newTripBtn" class="btn primary" type="button">＋ 新增旅程</button>
+        <button id="addItemBtn" class="btn ghost" type="button">＋ 新增行程項目</button>
         <label class="btn ghost file-btn">上傳行程<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
         <button id="exportBtn" class="btn ghost" type="button">匯出 JSON</button>
       </div>
-      <button id="tripListBtn" class="trip-library-btn" type="button"><span>☰</span><span><strong>行程清單</strong><small>示範與已上傳行程</small></span><span>›</span></button>
+      <div class="trip-library-actions">
+        <button id="tripListBtn" class="trip-library-btn" type="button"><span>☰</span><span><strong>旅程清單</strong><small>示範與已上傳旅程</small></span><span>›</span></button>
+        <button id="clearTripViewBtn" class="btn ghost clear-trip-btn" type="button">清空顯示</button>
+      </div>
 
       <div class="filter-row">
         <label for="dayFilter">地圖顯示</label>
@@ -52,23 +56,37 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">⌖</div>
         <h2>把旅程放上地圖</h2>
-        <p>新增地點，或上傳 CSV／JSON 行程檔。</p>
+        <p>請先新增旅程，再新增行程項目；也可以直接上傳旅程檔。</p>
       </div>
     </section>
 
     <section class="map-panel">
       <div id="map"></div>
       <div id="mapNotice" class="map-notice">地圖載入中…</div>
-      <button id="mobileListBtn" class="mobile-list-btn" type="button">查看行程清單</button>
+      <button id="mobileListBtn" class="mobile-list-btn" type="button">查看行程項目</button>
     </section>
   </main>
 
+  <dialog id="newTripDialog">
+    <form id="newTripForm" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">NEW JOURNEY</p><h2>新增旅程</h2></div><button class="icon-btn" value="cancel" aria-label="關閉">×</button></div>
+      <div class="form-grid">
+        <label class="span-2">旅程名稱<input id="newTripTitle" required maxlength="120" placeholder="例如：四國自駕 4 日"></label>
+        <label>開始日期<input id="newTripStartDate" required type="date"></label>
+        <label>結束日期<input id="newTripEndDate" required type="date"></label>
+        <label class="span-2">旅程說明（選填）<textarea id="newTripDescription" rows="3" maxlength="2000"></textarea></label>
+      </div>
+      <p id="newTripError" class="form-error"></p>
+      <div class="dialog-actions"><button class="btn ghost" value="cancel">取消</button><button class="btn primary" value="default">建立旅程</button></div>
+    </form>
+  </dialog>
+
   <dialog id="stopDialog">
     <form id="stopForm" method="dialog">
-      <div class="dialog-head"><div><p class="eyebrow">ITINERARY STOP</p><h2 id="dialogTitle">新增地點</h2></div><button class="icon-btn" value="cancel" aria-label="關閉">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">ITINERARY ITEM</p><h2 id="dialogTitle">新增行程項目</h2></div><button class="icon-btn" value="cancel" aria-label="關閉">×</button></div>
       <input id="stopId" type="hidden">
       <div class="form-grid">
-        <label class="span-2">地點名稱<input id="stopTitle" required maxlength="100" placeholder="例如：高知城"></label>
+        <label class="span-2">項目名稱<input id="stopTitle" required maxlength="100" placeholder="例如：高知城／自駕前往高松空港"></label>
         <label>日期<input id="stopDate" required type="date"></label>
         <label>開始時間<input id="stopTime" type="time"></label>
         <label>結束時間<input id="stopEndTime" type="time"></label>
@@ -76,6 +94,8 @@
         <label>移動方式<select id="stopTransportMode"><option value="">不指定</option><option>自駕</option><option>飛機</option><option>鐵路</option><option>巴士</option><option>市電</option><option>計程車</option><option>步行</option><option>其他</option></select></label>
         <label>起點<input id="stopOrigin" maxlength="200" placeholder="移動項目使用"></label>
         <label>迄點<input id="stopDestination" maxlength="200" placeholder="移動項目使用"></label>
+        <label>起點緯度（首筆飛機選填）<input id="stopOriginLat" type="number" step="any"></label>
+        <label>起點經度（首筆飛機選填）<input id="stopOriginLng" type="number" step="any"></label>
         <label class="span-2">地址或地點關鍵字<input id="stopAddress" required placeholder="輸入完整地址，儲存時會自動定位"></label>
         <label>緯度（選填）<input id="stopLat" type="number" step="any"></label>
         <label>經度（選填）<input id="stopLng" type="number" step="any"></label>
@@ -83,7 +103,7 @@
         <label class="span-2">備註<textarea id="stopNotes" rows="3" maxlength="1000" placeholder="營業時間、票券、預約資訊…"></textarea></label>
       </div>
       <p id="formError" class="form-error"></p>
-      <div class="dialog-actions"><button class="btn ghost" value="cancel">取消</button><button id="confirmStopBtn" class="btn primary" value="default">儲存地點</button></div>
+      <div class="dialog-actions"><button class="btn ghost" value="cancel">取消</button><button id="confirmStopBtn" class="btn primary" value="default">儲存行程項目</button></div>
     </form>
   </dialog>
 
@@ -98,8 +118,8 @@
 
   <dialog id="tripListDialog" class="trip-list-dialog">
     <div class="share-card">
-      <div class="dialog-head"><div><p class="eyebrow">TRIP LIBRARY</p><h2>行程清單</h2></div><button class="icon-btn" data-close="tripListDialog">×</button></div>
-      <p class="hint">點擊示範行程可建立副本；點擊已上傳行程則載入共用資料。</p>
+      <div class="dialog-head"><div><p class="eyebrow">TRIP LIBRARY</p><h2>旅程清單</h2></div><button class="icon-btn" data-close="tripListDialog">×</button></div>
+      <p class="hint">點擊示範旅程可建立副本；點擊已上傳旅程則載入共用資料。</p>
       <div id="tripListContent" class="trip-list-content"><p class="hint">載入中…</p></div>
     </div>
   </dialog>

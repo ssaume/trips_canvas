@@ -10,3 +10,13 @@
 .leaflet-popup-content h3{margin:2px 0 5px;color:var(--ink)}
 .leaflet-popup-content p{margin:2px 0;color:#62798b;font-size:12px}
 .trip-library-btn{width:100%;display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;margin:14px 0 4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.72);color:var(--ink);text-align:left;cursor:pointer}.trip-library-btn:hover{border-color:var(--sea);background:white}.trip-library-btn strong,.trip-library-btn small{display:block}.trip-library-btn small{margin-top:2px;color:var(--muted);font-size:11px}.trip-list-content{display:grid;gap:10px;max-height:min(60vh,540px);overflow:auto}.trip-list-item{display:grid;grid-template-columns:1fr auto;gap:12px;width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);text-align:left;cursor:pointer}.trip-list-item:hover{border-color:var(--sea);box-shadow:0 7px 20px rgba(31,54,72,.08)}.trip-list-item h3{margin:0 0 5px;font-size:15px}.trip-list-item p{margin:2px 0;color:var(--muted);font-size:12px}.trip-list-tag{align-self:start;padding:4px 8px;border-radius:999px;background:#eaf1f1;color:#477b86;font-size:10px;font-weight:700}.trip-list-tag.demo{background:#fff0e9;color:var(--accent-dark)}.route-detail{color:var(--ink)!important;font-weight:600}.cost-detail{color:var(--accent-dark)!important}
+
+/* v1.3 journey-first flow */
+.btn:disabled{cursor:not-allowed;opacity:.45;transform:none}
+.stop-card{cursor:pointer}
+.stop-card:hover{background:rgba(255,255,255,.42)}
+#newTripForm{padding:26px}
+.trip-library-actions{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:stretch}
+.trip-library-actions .trip-library-btn{margin-right:0}
+.clear-trip-btn{align-self:stretch;margin:14px 0 4px;color:var(--accent-dark)!important}
+.pin-zero{background:var(--ink)}

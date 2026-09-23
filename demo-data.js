@@ -3,7 +3,7 @@ window.TRIP_DEMOS = [
     id: "demo-shikoku-2026",
     label: "示範資料",
     data: {
-      schemaVersion: 2,
+      schemaVersion: 3,
       trip: {
         title: "四國自駕 4 日｜高知・松山・百名城",
         startDate: "2026-09-25",
@@ -11,7 +11,7 @@ window.TRIP_DEMOS = [
         description: "CI278／CI179；OMO7 高知一晚、ダイワロイネットホテル松山兩晚。南国SA找玩偶，並收集高知城、岡豊城、大洲城、松山城、湯築城、今治城。"
       },
       stops: [
-        { id:"d01",date:"2026-09-25",startTime:"06:55",endTime:"10:30",title:"CI278｜桃園→高松",category:"移動",transportMode:"飛機",origin:"桃園國際機場 TPE",destination:"高松空港 TAK",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"抵達後辦理入境與取車。" },
+        { id:"d01",date:"2026-09-25",startTime:"06:55",endTime:"10:30",title:"CI278｜桃園→高松",category:"移動",transportMode:"飛機",origin:"桃園國際機場 TPE",originLat:25.0797,originLng:121.2342,destination:"高松空港 TAK",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"抵達後辦理入境與取車。" },
         { id:"d02",date:"2026-09-25",startTime:"10:30",endTime:"11:40",title:"入境・取車・補給",category:"休憩",transportMode:"",origin:"",destination:"",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"取車後先確認南国SA下行玩偶庫存。" },
         { id:"d03",date:"2026-09-25",startTime:"11:40",endTime:"12:45",title:"自駕｜高松空港→豊浜SA",category:"移動",transportMode:"自駕",origin:"高松空港",destination:"豊浜SA 下り",address:"豊浜サービスエリア 下り",lat:34.0347,lng:133.6418,cost:"高速公路費另計",notes:"走高松西IC、E11；避免在高松市區停留。" },
         { id:"d04",date:"2026-09-25",startTime:"12:45",endTime:"13:05",title:"豊浜SA 短休",category:"休憩",transportMode:"",origin:"",destination:"",address:"豊浜サービスエリア 下り",lat:34.0347,lng:133.6418,cost:"",notes:"洗手間、飲料與簡單補給，不安排正式午餐。" },
