@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#17324d">
+  <title>TripCanvas 行程地圖</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span>TripCanvas</span></a>
+    <div class="top-actions">
+      <span id="syncStatus" class="status-pill">尚未儲存</span>
+      <button id="shareBtn" class="btn ghost" type="button">分享</button>
+      <button id="saveBtn" class="btn primary editor-only" type="button">儲存行程</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="side-panel">
+      <div class="trip-heading">
+        <p class="eyebrow">YOUR JOURNEY</p>
+        <input id="tripTitle" class="title-input editor-control" value="我的新行程" aria-label="行程名稱">
+        <h1 id="viewTitle" class="view-title">我的新行程</h1>
+        <div class="date-row">
+          <label><span>開始</span><input id="startDate" class="editor-control" type="date"></label>
+          <label><span>結束</span><input id="endDate" class="editor-control" type="date"></label>
+        </div>
+        <p id="viewDates" class="view-dates"></p>
+      </div>
+
+      <div class="toolbar editor-only">
+        <button id="addStopBtn" class="btn primary" type="button">＋ 新增地點</button>
+        <label class="btn ghost file-btn">上傳行程<input id="fileInput" type="file" accept=".csv,.json,application/json,text/csv"></label>
+        <button id="exportBtn" class="btn ghost" type="button">匯出 JSON</button>
+      </div>
+
+      <div class="filter-row">
+        <label for="dayFilter">地圖顯示</label>
+        <select id="dayFilter"><option value="all">全部日期</option></select>
+        <button id="routeBtn" class="text-btn" type="button">顯示順序線</button>
+        <button id="navBtn" class="text-btn" type="button">Google Maps 導航 ↗</button>
+      </div>
+
+      <div id="timeline" class="timeline" aria-live="polite"></div>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">⌖</div>
+        <h2>把旅程放上地圖</h2>
+        <p>新增地點，或上傳 CSV／JSON 行程檔。</p>
+      </div>
+    </section>
+
+    <section class="map-panel">
+      <div id="map"></div>
+      <div id="mapNotice" class="map-notice">地圖載入中…</div>
+      <button id="mobileListBtn" class="mobile-list-btn" type="button">查看行程清單</button>
+    </section>
+  </main>
+
+  <dialog id="stopDialog">
+    <form id="stopForm" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">ITINERARY STOP</p><h2 id="dialogTitle">新增地點</h2></div><button class="icon-btn" value="cancel" aria-label="關閉">×</button></div>
+      <input id="stopId" type="hidden">
+      <div class="form-grid">
+        <label class="span-2">地點名稱<input id="stopTitle" required maxlength="100" placeholder="例如：高知城"></label>
+        <label>日期<input id="stopDate" required type="date"></label>
+        <label>開始時間<input id="stopTime" type="time"></label>
+        <label>結束時間<input id="stopEndTime" type="time"></label>
+        <label>類別<select id="stopCategory"><option>景點</option><option>餐飲</option><option>住宿</option><option>交通</option><option>購物</option><option>其他</option></select></label>
+        <label class="span-2">地址或地點關鍵字<input id="stopAddress" required placeholder="輸入完整地址，儲存時會自動定位"></label>
+        <label>緯度（選填）<input id="stopLat" type="number" step="any"></label>
+        <label>經度（選填）<input id="stopLng" type="number" step="any"></label>
+        <label class="span-2">備註<textarea id="stopNotes" rows="3" maxlength="1000" placeholder="營業時間、票券、預約資訊…"></textarea></label>
+      </div>
+      <p id="formError" class="form-error"></p>
+      <div class="dialog-actions"><button class="btn ghost" value="cancel">取消</button><button id="confirmStopBtn" class="btn primary" value="default">儲存地點</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="shareDialog">
+    <div class="share-card">
+      <div class="dialog-head"><div><p class="eyebrow">SHARE TRIP</p><h2>分享行程</h2></div><button class="icon-btn" data-close="shareDialog">×</button></div>
+      <label>檢視連結<div class="copy-row"><input id="viewLink" readonly><button class="btn ghost" data-copy="viewLink">複製</button></div></label>
+      <label class="editor-only">管理連結（可編輯）<div class="copy-row"><input id="editLink" readonly><button class="btn ghost" data-copy="editLink">複製</button></div></label>
+      <p class="hint">管理連結包含編輯密鑰，請只傳給共同編輯者。</p>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="config.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
