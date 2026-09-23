@@ -16,7 +16,7 @@ const state = {
 
 function freshTrip() {
   const today = new Date().toISOString().slice(0, 10);
-  return { schemaVersion: 1, trip: { title: "我的新行程", startDate: today, endDate: today, description: "" }, stops: [] };
+  return { schemaVersion: 2, trip: { title: "我的新行程", startDate: today, endDate: today, description: "" }, stops: [] };
 }
 
 function uid() { return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
@@ -39,7 +39,7 @@ function normalizeTrip(input) {
   const trip = input.trip || input;
   const stops = Array.isArray(input.stops) ? input.stops : [];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     trip: {
       title: String(trip.title || base.trip.title).slice(0, 120),
       startDate: String(trip.startDate || base.trip.startDate).slice(0, 10),
@@ -55,18 +55,30 @@ function normalizeTrip(input) {
       address: String(s.address || "").slice(0, 300),
       lat: finiteOrNull(s.lat ?? s.latitude),
       lng: finiteOrNull(s.lng ?? s.longitude),
-      category: String(s.category || "景點").slice(0, 30),
+      category: normalizeCategory(s.category || s.type),
+      transportMode: String(s.transportMode || "").slice(0, 30),
+      origin: String(s.origin || s.from || "").slice(0, 200),
+      destination: String(s.destination || s.to || "").slice(0, 200),
+      cost: String(s.cost || s.fee || s["料金"] || "").slice(0, 100),
       notes: String(s.notes || s.note || "").slice(0, 1000)
     }))
   };
 }
 function finiteOrNull(value) { const n = Number(value); return value !== "" && value != null && Number.isFinite(n) ? n : null; }
+function normalizeCategory(value) {
+  const type = String(value || "").trim();
+  if (["移動", "移动", "交通"].includes(type)) return "移動";
+  if (["休憩", "休息", "住宿"].includes(type)) return "休憩";
+  if (["観光", "觀光", "景點", "购物", "購物"].includes(type)) return "觀光";
+  if (["食事", "餐飲", "用餐", "午餐", "晚餐"].includes(type)) return "食事";
+  return "觀光";
+}
 
 function sortStops(stops = state.data.stops) {
   return [...stops].sort((a, b) => `${a.date} ${a.startTime || "99:99"}`.localeCompare(`${b.date} ${b.startTime || "99:99"}`));
 }
 
-async function apiGet(id) {
+async function apiJsonp(parameters) {
   if (!isConfigured(CONFIG.GAS_URL)) throw new Error("尚未設定 GAS_URL");
   return new Promise((resolve, reject) => {
     const callback = `tripJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -75,10 +87,13 @@ async function apiGet(id) {
     function cleanup(error, result) { clearTimeout(timer); delete window[callback]; script.remove(); error ? reject(error) : resolve(result); }
     window[callback] = result => result?.ok ? cleanup(null, result) : cleanup(new Error(result?.error || "讀取失敗"));
     script.onerror = () => cleanup(new Error("無法連線至 GAS"));
-    script.src = `${CONFIG.GAS_URL}?action=get&id=${encodeURIComponent(id)}&callback=${callback}`;
+    const query = new URLSearchParams({ ...parameters, callback });
+    script.src = `${CONFIG.GAS_URL}?${query.toString()}`;
     document.head.appendChild(script);
   });
 }
+async function apiGet(id) { return apiJsonp({ action: "get", id }); }
+async function apiList() { return apiJsonp({ action: "list" }); }
 
 async function apiPost(payload) {
   if (!isConfigured(CONFIG.GAS_URL)) throw new Error("尚未設定 GAS_URL");
@@ -162,7 +177,7 @@ function renderTimeline() {
     <section class="day-group"><div class="day-heading"><strong>${escapeHtml(formatDay(date))}</strong><span>${items.length} 個地點</span></div>
     ${items.map((s, index) => `<article class="stop-card" data-id="${escapeHtml(s.id)}">
       <div class="stop-time">${escapeHtml(s.startTime || "—")}</div>
-      <div class="stop-body"><h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.address)}</p>${s.notes ? `<p>${escapeHtml(s.notes)}</p>` : ""}<span class="category">${escapeHtml(s.category)}</span></div>
+      <div class="stop-body"><h3>${escapeHtml(s.title)}</h3>${s.origin || s.destination ? `<p class="route-detail">${escapeHtml(s.origin || "—")} → ${escapeHtml(s.destination || "—")}</p>` : ""}<p>${escapeHtml(s.address)}</p>${s.cost ? `<p class="cost-detail">料金：${escapeHtml(s.cost)}</p>` : ""}${s.notes ? `<p>${escapeHtml(s.notes)}</p>` : ""}<span class="category">${escapeHtml(s.category)}</span>${s.transportMode ? `<span class="category">${escapeHtml(s.transportMode)}</span>` : ""}</div>
       <div class="stop-actions">
         <button class="small-btn" data-action="focus" title="在地圖顯示">⌖</button>
         ${canEdit() ? `<button class="small-btn" data-action="edit" title="編輯">✎</button><button class="small-btn" data-action="delete" title="刪除">×</button>` : ""}
@@ -176,10 +191,14 @@ function openStopDialog(stop = null) {
   $("stopDate").value = stop?.date || state.data.trip.startDate || new Date().toISOString().slice(0, 10);
   $("stopTime").value = stop?.startTime || "";
   $("stopEndTime").value = stop?.endTime || "";
-  $("stopCategory").value = stop?.category || "景點";
+  $("stopCategory").value = normalizeCategory(stop?.category);
+  $("stopTransportMode").value = stop?.transportMode || "";
+  $("stopOrigin").value = stop?.origin || "";
+  $("stopDestination").value = stop?.destination || "";
   $("stopAddress").value = stop?.address || "";
   $("stopLat").value = stop?.lat ?? "";
   $("stopLng").value = stop?.lng ?? "";
+  $("stopCost").value = stop?.cost || "";
   $("stopNotes").value = stop?.notes || "";
   $("formError").textContent = "";
   $("stopDialog").showModal();
@@ -193,7 +212,7 @@ async function submitStop(event) {
   try {
     let lat = finiteOrNull($("stopLat").value), lng = finiteOrNull($("stopLng").value);
     if (lat == null || lng == null) ({ lat, lng } = await geocode($("stopAddress").value.trim()));
-    const stop = { id: $("stopId").value || uid(), date: $("stopDate").value, startTime: $("stopTime").value, endTime: $("stopEndTime").value, title: $("stopTitle").value.trim(), address: $("stopAddress").value.trim(), lat, lng, category: $("stopCategory").value, notes: $("stopNotes").value.trim() };
+    const stop = { id: $("stopId").value || uid(), date: $("stopDate").value, startTime: $("stopTime").value, endTime: $("stopEndTime").value, title: $("stopTitle").value.trim(), address: $("stopAddress").value.trim(), lat, lng, category: $("stopCategory").value, transportMode: $("stopTransportMode").value, origin: $("stopOrigin").value.trim(), destination: $("stopDestination").value.trim(), cost: $("stopCost").value.trim(), notes: $("stopNotes").value.trim() };
     const index = state.data.stops.findIndex(s => s.id === stop.id);
     if (index >= 0) state.data.stops[index] = stop; else state.data.stops.push(stop);
     $("stopDialog").close();
@@ -234,17 +253,22 @@ function initMap() {
 }
 
 function visibleStops() { const day = $("dayFilter").value; return sortStops().filter(s => day === "all" || s.date === day); }
+function uniqueLocatedStops(includeMovements = false) {
+  const source = visibleStops().filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && (includeMovements || s.category !== "移動"));
+  return source.filter((stop, index) => index === 0 || Math.abs(stop.lat - source[index - 1].lat) > .00001 || Math.abs(stop.lng - source[index - 1].lng) > .00001);
+}
 function clearMapObjects() { state.markers.forEach(m => m.remove()); state.markers = []; state.polylines.forEach(p => p.remove()); state.polylines = []; }
 function refreshMap() {
   if (!state.mapsReady) return;
   clearMapObjects();
-  const stops = visibleStops().filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  let stops = uniqueLocatedStops(false);
+  if (!stops.length) stops = uniqueLocatedStops(true);
   if (!stops.length) return;
   const bounds = L.latLngBounds();
   stops.forEach((stop, index) => {
     const icon = L.divIcon({ className: "trip-number-icon", html: `<div class="pin"><span>${index + 1}</span></div>`, iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -35] });
     const marker = L.marker([stop.lat, stop.lng], { title: stop.title, icon }).addTo(state.map);
-    marker.bindPopup(`<h3>${escapeHtml(stop.title)}</h3><p>${escapeHtml(stop.date)} ${escapeHtml(stop.startTime)}</p><p>${escapeHtml(stop.address)}</p>`);
+    marker.bindPopup(`<h3>${escapeHtml(stop.title)}</h3><p>${escapeHtml(stop.date)} ${escapeHtml(stop.startTime)}・${escapeHtml(stop.category)}</p>${stop.origin || stop.destination ? `<p>${escapeHtml(stop.origin || "—")} → ${escapeHtml(stop.destination || "—")}</p>` : ""}<p>${escapeHtml(stop.address)}</p>`);
     marker.stopId = stop.id; state.markers.push(marker); bounds.extend(marker.getLatLng());
   });
   if (stops.length === 1) state.map.setView([stops[0].lat, stops[0].lng], 14); else state.map.fitBounds(bounds, { padding: [55, 55] });
@@ -252,7 +276,8 @@ function refreshMap() {
 
 function drawRoute() {
   if (!state.mapsReady) return toast("地圖尚未載入");
-  const stops = visibleStops().filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  let stops = uniqueLocatedStops(false);
+  if (!stops.length) stops = uniqueLocatedStops(true);
   if (stops.length < 2) return toast("此篩選至少需要兩個已定位地點");
   state.polylines.forEach(p => p.remove()); state.polylines = [];
   const line = L.polyline(stops.map(s => [s.lat, s.lng]), { color: "#e76845", opacity: .9, weight: 5, dashArray: "10 8" }).addTo(state.map);
@@ -261,7 +286,8 @@ function drawRoute() {
 }
 
 function openGoogleNavigation() {
-  const allStops = visibleStops().filter(s => (Number.isFinite(s.lat) && Number.isFinite(s.lng)) || s.address);
+  const candidates = visibleStops().filter(s => s.category !== "移動" && ((Number.isFinite(s.lat) && Number.isFinite(s.lng)) || s.address));
+  const allStops = candidates.filter((stop, index) => index === 0 || stop.address !== candidates[index - 1].address);
   if (allStops.length < 2) return toast("至少需要兩個有地址或座標的地點");
   const stops = allStops.slice(0, 10);
   const location = stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng) ? `${stop.lat},${stop.lng}` : stop.address;
@@ -277,7 +303,8 @@ function openGoogleNavigation() {
 
 function focusStop(id) {
   const marker = state.markers.find(m => m.stopId === id); const stop = state.data.stops.find(s => s.id === id);
-  if (!marker || !stop) return toast("此地點尚未完成定位");
+  if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return toast("此地點尚未完成定位");
+  if (!marker) { state.map.setView([stop.lat, stop.lng], 15); return toast("已定位移動項目的目的地"); }
   state.map.setView(marker.getLatLng(), 15); marker.openPopup();
 }
 
@@ -289,13 +316,93 @@ function parseCsv(text) {
   return rows.slice(1).map(values => Object.fromEntries(headers.map((h, i) => [h, values[i]?.trim() || ""])));
 }
 
+function pickField(row, ...names) {
+  for (const name of names) if (row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== "") return row[name];
+  return "";
+}
+function excelDate(value) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "number" && value >= 1) return new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000).toISOString().slice(0, 10);
+  const text = String(value || "").trim().replace(/[./]/g, "-");
+  const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return match ? `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}` : "";
+}
+function excelTime(value) {
+  if (value === "" || value == null) return "";
+  if (typeof value === "number") {
+    const minutes = Math.round((value % 1) * 1440) % 1440;
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  }
+  if (value instanceof Date) return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+  const match = String(value).trim().match(/(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : "";
+}
+function inferCategory(type, title, origin, destination) {
+  if (String(type || "").trim()) return normalizeCategory(type);
+  const text = `${title} ${origin} ${destination}`;
+  if (origin || destination || /自駕|開車|飛機|航班|CI\d+|JR|新幹線|特急|電車|市電|巴士|バス|Taxi|計程車|步行|接送|入境|到着|取車|還車/i.test(text)) return "移動";
+  if (/午餐|晚餐|早餐|用餐|餐廳|市場|食事|弁当|咖啡|拉麵|飯|料理/i.test(text)) return "食事";
+  if (/飯店|旅館|ホテル|宿|休息|休憩|入住|Check.?in/i.test(text)) return "休憩";
+  return "觀光";
+}
+function inferTransportMode(title) {
+  const text = String(title || "");
+  if (/自駕|開車|取車|還車/.test(text)) return "自駕";
+  if (/CI\d+|飛機|航班/.test(text)) return "飛機";
+  if (/JR|新幹線|特急|鉄道|鐵路/.test(text)) return "鐵路";
+  if (/市電/.test(text)) return "市電";
+  if (/巴士|バス|接送/.test(text)) return "巴士";
+  if (/Taxi|計程車/i.test(text)) return "計程車";
+  if (/步行/.test(text)) return "步行";
+  return "";
+}
+function referenceRowsToTrip(rows, filename) {
+  const stops = rows.map(row => {
+    const title = String(pickField(row, "項目", "item", "title", "地點名稱", "名稱") || "").trim();
+    const origin = String(pickField(row, "起", "origin", "from", "起點") || "").trim();
+    const destination = String(pickField(row, "迄", "destination", "to", "迄點") || "").trim();
+    const type = pickField(row, "類型", "类型", "type", "category");
+    return {
+      id: uid(),
+      date: excelDate(pickField(row, "日期", "date")),
+      startTime: excelTime(pickField(row, "啟程時間", "启程时间", "startTime", "starttime", "time", "開始時間")),
+      endTime: excelTime(pickField(row, "到達時間", "到达时间", "endTime", "endtime", "結束時間")),
+      title: title || destination || origin || "未命名項目",
+      origin,
+      destination,
+      address: String(pickField(row, "地址", "address") || destination || origin || title).trim(),
+      lat: finiteOrNull(pickField(row, "緯度", "lat", "latitude")),
+      lng: finiteOrNull(pickField(row, "經度", "lng", "longitude")),
+      category: inferCategory(type, title, origin, destination),
+      transportMode: String(pickField(row, "移動方式", "transportMode", "transportmode") || inferTransportMode(title)),
+      cost: String(pickField(row, "料金", "費用", "cost", "fee") || "").trim(),
+      notes: String(pickField(row, "備註", "notes", "note") || "").trim()
+    };
+  }).filter(stop => stop.date || stop.title !== "未命名項目");
+  const dates = stops.map(s => s.date).filter(Boolean).sort();
+  return normalizeTrip({
+    schemaVersion: 2,
+    trip: { title: filename.replace(/\.(xlsx?|csv)$/i, ""), startDate: dates[0], endDate: dates.at(-1), description: "由旅程檔案匯入" },
+    stops
+  });
+}
+async function importExcel(file) {
+  if (!window.XLSX) throw new Error("Excel 解析元件尚未載入");
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!firstSheet) throw new Error("Excel 沒有工作表");
+  const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: true });
+  if (!rows.length) throw new Error("Excel 沒有行程資料");
+  return referenceRowsToTrip(rows, file.name);
+}
+
 async function importFile(file) {
   try {
-    const text = await file.text();
-    if (file.name.toLowerCase().endsWith(".json")) state.data = normalizeTrip(JSON.parse(text));
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) state.data = await importExcel(file);
+    else if (lowerName.endsWith(".json")) state.data = normalizeTrip(JSON.parse(await file.text()));
     else {
-      const items = parseCsv(text);
-      state.data.stops = normalizeTrip({ trip: state.data.trip, stops: items.map(r => ({ date: r.date || r["日期"], startTime: r.starttime || r.time || r["開始時間"] || r["時間"], endTime: r.endtime || r["結束時間"], title: r.title || r.name || r["地點名稱"] || r["名稱"], address: r.address || r["地址"], lat: r.lat || r.latitude || r["緯度"], lng: r.lng || r.longitude || r["經度"], category: r.category || r["類別"], notes: r.notes || r.note || r["備註"] })) }).stops;
+      state.data = referenceRowsToTrip(parseCsv(await file.text()), file.name);
     }
     renderAll(); markDirty(); toast(`已匯入 ${state.data.stops.length} 個地點`);
   } catch (error) { toast(`匯入失敗：${error.message}`); }
@@ -315,10 +422,44 @@ function openShare() {
   $("viewLink").value = base; $("editLink").value = `${base}#edit=${encodeURIComponent(state.editKey)}`; $("shareDialog").showModal();
 }
 
+function tripListItemHtml(item) {
+  const isDemo = item.source === "demo";
+  return `<button class="trip-list-item" type="button" data-trip-source="${isDemo ? "demo" : "saved"}" data-trip-id="${escapeHtml(item.id)}">
+    <span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(" — "))}</p><p>${escapeHtml(`${item.stopCount || 0} 個項目${item.updatedAt ? `・更新 ${formatTimestamp(item.updatedAt)}` : ""}`)}</p></span>
+    <span class="trip-list-tag ${isDemo ? "demo" : ""}">${isDemo ? "示範" : "已上傳"}</span>
+  </button>`;
+}
+async function openTripList() {
+  $("tripListDialog").showModal();
+  const demos = (window.TRIP_DEMOS || []).map(demo => ({ source: "demo", id: demo.id, title: demo.data.trip.title, startDate: demo.data.trip.startDate, endDate: demo.data.trip.endDate, stopCount: demo.data.stops.length }));
+  $("tripListContent").innerHTML = demos.map(tripListItemHtml).join("") || `<p class="hint">目前沒有示範行程。</p>`;
+  if (!isConfigured(CONFIG.GAS_URL)) return;
+  try {
+    const result = await apiList();
+    const saved = (result.trips || []).map(item => ({ ...item, source: "saved" }));
+    $("tripListContent").innerHTML = [...demos, ...saved].map(tripListItemHtml).join("") || `<p class="hint">尚無行程。</p>`;
+  } catch (error) { toast(`已上傳行程讀取失敗：${error.message}`); }
+}
+function loadDemoTrip(id) {
+  const demo = (window.TRIP_DEMOS || []).find(item => item.id === id);
+  if (!demo) return toast("找不到示範行程");
+  if (state.dirty && !confirm("目前有未儲存變更，確定載入示範行程？")) return;
+  state.tripId = ""; state.editKey = ""; state.data = normalizeTrip(structuredClone(demo.data)); state.dirty = true;
+  history.replaceState(null, "", location.pathname);
+  $("dayFilter").value = "all"; renderAll(); setStatus("示範資料（尚未儲存）"); $("tripListDialog").close();
+  toast("已載入四國示範行程；儲存後會建立你的副本");
+}
+function loadSavedTrip(id) {
+  if (state.dirty && !confirm("目前有未儲存變更，確定切換行程？")) return;
+  location.href = `${location.pathname}?trip=${encodeURIComponent(id)}`;
+}
+
 function bindEvents() {
   $("tripTitle").addEventListener("input", autoRender); $("startDate").addEventListener("change", autoRender); $("endDate").addEventListener("change", autoRender);
   $("saveBtn").addEventListener("click", saveTrip); $("shareBtn").addEventListener("click", openShare); $("addStopBtn").addEventListener("click", () => openStopDialog());
   $("stopForm").addEventListener("submit", submitStop); $("fileInput").addEventListener("change", e => e.target.files[0] && importFile(e.target.files[0])); $("exportBtn").addEventListener("click", exportJson);
+  $("tripListBtn").addEventListener("click", openTripList);
+  $("tripListContent").addEventListener("click", e => { const item = e.target.closest("[data-trip-id]"); if (!item) return; item.dataset.tripSource === "demo" ? loadDemoTrip(item.dataset.tripId) : loadSavedTrip(item.dataset.tripId); });
   $("dayFilter").addEventListener("change", refreshMap); $("routeBtn").addEventListener("click", drawRoute); $("navBtn").addEventListener("click", openGoogleNavigation);
   $("timeline").addEventListener("click", e => { const button = e.target.closest("button[data-action]"); if (!button) return; const id = button.closest(".stop-card").dataset.id; if (button.dataset.action === "focus") focusStop(id); if (button.dataset.action === "edit") openStopDialog(state.data.stops.find(s => s.id === id)); if (button.dataset.action === "delete" && confirm("確定刪除此地點？")) { state.data.stops = state.data.stops.filter(s => s.id !== id); markDirty(); renderFilters(); renderTimeline(); refreshMap(); } });
   document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => $(b.dataset.close).close()));
