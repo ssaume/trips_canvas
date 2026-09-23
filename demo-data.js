@@ -1,11 +1,11 @@
 window.TRIP_DEMOS = [
   {
     id: "demo-shikoku-2026",
-    label: "示範資料",
+    label: "示範旅程資料",
     data: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       trip: {
-        title: "四國自駕 4 日｜高知・松山・百名城",
+        title: "示範旅程資料",
         startDate: "2026-09-25",
         endDate: "2026-09-28",
         description: "CI278／CI179；OMO7 高知一晚、ダイワロイネットホテル松山兩晚。南国SA找玩偶，並收集高知城、岡豊城、大洲城、松山城、湯築城、今治城。"

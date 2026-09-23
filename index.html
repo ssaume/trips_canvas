@@ -13,11 +13,16 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span>TripCanvas</span></a>
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span class="brand-copy"><strong>TripCanvas</strong><small>v1.4.0 · © ssaume</small></span></a>
     <div class="top-actions">
       <span id="syncStatus" class="status-pill">尚未儲存</span>
+      <span id="guestBadge" class="guest-badge">訪客模式</span>
+      <button id="newTripBtn" class="btn ghost auth-only" type="button">＋ 新增旅程</button>
+      <button id="saveBtn" class="btn primary write-only" type="button">儲存</button>
       <button id="shareBtn" class="btn ghost" type="button">分享</button>
-      <button id="saveBtn" class="btn primary editor-only" type="button">儲存行程</button>
+      <button id="adminBtn" class="btn ghost admin-only" type="button">帳號管理</button>
+      <button id="accountBtn" class="btn ghost auth-only" type="button"></button>
+      <button id="loginBtn" class="btn primary guest-only" type="button">登入</button>
     </div>
   </header>
 
@@ -27,23 +32,22 @@
         <p class="eyebrow">YOUR JOURNEY</p>
         <input id="tripTitle" class="title-input editor-control" value="" aria-label="旅程名稱" placeholder="請先新增或載入旅程">
         <h1 id="viewTitle" class="view-title">尚未選擇旅程</h1>
-        <div class="date-row">
-          <label><span>開始</span><input id="startDate" class="editor-control" type="date"></label>
-          <label><span>結束</span><input id="endDate" class="editor-control" type="date"></label>
-        </div>
         <p id="viewDates" class="view-dates"></p>
+        <p id="tripOwner" class="trip-owner"></p>
       </div>
 
-      <div class="toolbar editor-only">
-        <button id="newTripBtn" class="btn primary" type="button">＋ 新增旅程</button>
+      <div class="toolbar write-only">
         <button id="addItemBtn" class="btn ghost" type="button">＋ 新增行程項目</button>
         <label class="btn ghost file-btn">上傳行程<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
         <button id="exportBtn" class="btn ghost" type="button">匯出 JSON</button>
+        <span class="drag-hint">☷ 登入後可拖拉調整同日順序</span>
       </div>
-      <div class="trip-library-actions">
-        <button id="tripListBtn" class="trip-library-btn" type="button"><span>☰</span><span><strong>旅程清單</strong><small>示範與已上傳旅程</small></span><span>›</span></button>
-        <button id="clearTripViewBtn" class="btn ghost clear-trip-btn" type="button">清空顯示</button>
-      </div>
+
+      <details id="tripPicker" class="trip-picker" open>
+        <summary><span>☰</span><span><strong>選擇旅程</strong><small>示範與大家上傳的旅程</small></span><span class="chevron">⌄</span></summary>
+        <div class="trip-picker-tools"><button id="refreshTripsBtn" class="btn ghost" type="button">重新整理</button><button id="clearTripViewBtn" class="btn ghost clear-trip-btn" type="button">清空顯示</button></div>
+        <div id="tripListContent" class="trip-list-content"><p class="hint">載入中…</p></div>
+      </details>
 
       <div class="filter-row">
         <label for="dayFilter">地圖顯示</label>
@@ -69,7 +73,7 @@
 
   <dialog id="newTripDialog">
     <form id="newTripForm" method="dialog">
-      <div class="dialog-head"><div><p class="eyebrow">NEW JOURNEY</p><h2>新增旅程</h2></div><button class="icon-btn" value="cancel" aria-label="關閉">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">NEW JOURNEY</p><h2>新增旅程</h2></div><button class="icon-btn" type="button" data-close="newTripDialog" aria-label="關閉">×</button></div>
       <div class="form-grid">
         <label class="span-2">旅程名稱<input id="newTripTitle" required maxlength="120" placeholder="例如：四國自駕 4 日"></label>
         <label>開始日期<input id="newTripStartDate" required type="date"></label>
@@ -77,13 +81,13 @@
         <label class="span-2">旅程說明（選填）<textarea id="newTripDescription" rows="3" maxlength="2000"></textarea></label>
       </div>
       <p id="newTripError" class="form-error"></p>
-      <div class="dialog-actions"><button class="btn ghost" value="cancel">取消</button><button class="btn primary" value="default">建立旅程</button></div>
+      <div class="dialog-actions"><button class="btn ghost" type="button" data-close="newTripDialog">取消</button><button class="btn primary" type="submit">建立旅程</button></div>
     </form>
   </dialog>
 
   <dialog id="stopDialog">
     <form id="stopForm" method="dialog">
-      <div class="dialog-head"><div><p class="eyebrow">ITINERARY ITEM</p><h2 id="dialogTitle">新增行程項目</h2></div><button class="icon-btn" value="cancel" aria-label="關閉">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">ITINERARY ITEM</p><h2 id="dialogTitle">新增行程項目</h2></div><button class="icon-btn" type="button" data-close="stopDialog" aria-label="關閉">×</button></div>
       <input id="stopId" type="hidden">
       <div class="form-grid">
         <label class="span-2">項目名稱<input id="stopTitle" required maxlength="100" placeholder="例如：高知城／自駕前往高松空港"></label>
@@ -103,7 +107,7 @@
         <label class="span-2">備註<textarea id="stopNotes" rows="3" maxlength="1000" placeholder="營業時間、票券、預約資訊…"></textarea></label>
       </div>
       <p id="formError" class="form-error"></p>
-      <div class="dialog-actions"><button class="btn ghost" value="cancel">取消</button><button id="confirmStopBtn" class="btn primary" value="default">儲存行程項目</button></div>
+      <div class="dialog-actions"><button class="btn ghost" type="button" data-close="stopDialog">取消</button><button id="confirmStopBtn" class="btn primary" type="submit">儲存行程項目</button></div>
     </form>
   </dialog>
 
@@ -111,16 +115,34 @@
     <div class="share-card">
       <div class="dialog-head"><div><p class="eyebrow">SHARE TRIP</p><h2>分享行程</h2></div><button class="icon-btn" data-close="shareDialog">×</button></div>
       <label>檢視連結<div class="copy-row"><input id="viewLink" readonly><button class="btn ghost" data-copy="viewLink">複製</button></div></label>
-      <label class="editor-only">管理連結（可編輯）<div class="copy-row"><input id="editLink" readonly><button class="btn ghost" data-copy="editLink">複製</button></div></label>
-      <p class="hint">管理連結包含編輯密鑰，請只傳給共同編輯者。</p>
+      <p class="hint">所有人都能使用此連結檢視；只有旅程擁有者或管理員登入後可以編輯。</p>
     </div>
   </dialog>
 
-  <dialog id="tripListDialog" class="trip-list-dialog">
-    <div class="share-card">
-      <div class="dialog-head"><div><p class="eyebrow">TRIP LIBRARY</p><h2>旅程清單</h2></div><button class="icon-btn" data-close="tripListDialog">×</button></div>
-      <p class="hint">點擊示範旅程可建立副本；點擊已上傳旅程則載入共用資料。</p>
-      <div id="tripListContent" class="trip-list-content"><p class="hint">載入中…</p></div>
+  <dialog id="loginDialog">
+    <form id="loginForm" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">ACCOUNT</p><h2>登入 TripCanvas</h2></div><button class="icon-btn" type="button" data-close="loginDialog">×</button></div>
+      <div class="form-grid">
+        <label class="span-2">帳號<input id="loginUsername" required autocomplete="username"></label>
+        <label class="span-2">密碼<input id="loginPassword" required type="password" autocomplete="current-password"></label>
+      </div>
+      <p id="loginError" class="form-error"></p>
+      <div class="dialog-actions"><button class="btn ghost" type="button" data-close="loginDialog">取消</button><button id="confirmLoginBtn" class="btn primary" type="submit">登入</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="userDialog">
+    <div class="share-card user-admin-card">
+      <div class="dialog-head"><div><p class="eyebrow">ADMIN</p><h2>帳號管理</h2></div><button class="icon-btn" type="button" data-close="userDialog">×</button></div>
+      <form id="userForm" class="form-grid">
+        <label>帳號<input id="userUsername" required minlength="3" maxlength="40" pattern="[a-zA-Z0-9._-]+"></label>
+        <label>權限<select id="userRole"><option value="user">使用者</option><option value="admin">管理員</option></select></label>
+        <label class="span-2">密碼<input id="userPassword" type="password" minlength="10" placeholder="新增必填；編輯時留白代表不變更"></label>
+        <label class="checkbox-label span-2"><input id="userActive" type="checkbox" checked> 啟用帳號</label>
+        <div class="dialog-actions span-2"><button class="btn ghost" id="resetUserFormBtn" type="button">新增模式</button><button class="btn primary" type="submit">儲存帳號</button></div>
+      </form>
+      <p id="userError" class="form-error"></p>
+      <div id="userList" class="user-list"></div>
     </div>
   </dialog>
 
