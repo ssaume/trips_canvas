@@ -315,7 +315,7 @@ function initMap() {
 function visibleStops() { const day = $("dayFilter").value; return sortStops().filter(s => day === "all" || s.date === day); }
 function locatedVisibleStops() {
   const sequence = new Map(sortStops().map((stop, index) => [stop.id, index + 1]));
-  return visibleStops().filter(stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng)).map(stop => ({ ...stop, sequence: sequence.get(stop.id) }));
+  return visibleStops().filter(stop => stop.category !== "移動" && Number.isFinite(stop.lat) && Number.isFinite(stop.lng)).map(stop => ({ ...stop, sequence: sequence.get(stop.id) }));
 }
 function routePoints() {
   const source = locatedVisibleStops();
