@@ -8,7 +8,7 @@ const TRIP_LIST_CACHE_MS = 60000;
 const state = {
   tripId: params.get("trip") || "", hasJourney: Boolean(params.get("trip")), data: freshTrip(), dirty: false,
   token: localStorage.getItem(SESSION_KEY) || "", user: null, owner: "", tripCanEdit: false,
-  map: null, markers: [], polylines: [], mapsReady: false, lastGeocodeAt: 0, draggedStopId: "",
+  map: null, markers: [], polylines: [], routeLine: null, mapsReady: false, lastGeocodeAt: 0, draggedStopId: "",
   tripsCache: null, tripsLoadedAt: 0, geocodeJobId: 0, geocodeCache: null
 };
 
@@ -51,6 +51,34 @@ function normalizeTrip(input) {
 }
 function sortStops(stops = state.data.stops) {
   return [...stops].sort((a, b) => String(a.date).localeCompare(String(b.date)) || Number(a.order ?? 9999) - Number(b.order ?? 9999) || String(a.startTime || "99:99").localeCompare(String(b.startTime || "99:99")));
+}
+function normalizedPlaceName(value) { return String(value || "").normalize("NFKC").toLowerCase().replace(/[\s\-_｜|→>、，,。．・()（）\[\]【】]/g, ""); }
+function placeNamesMatch(target, candidates) {
+  const expected = normalizedPlaceName(target); if (!expected) return false;
+  return candidates.some(candidate => { const actual = normalizedPlaceName(candidate); return actual && (actual === expected || (Math.min(actual.length, expected.length) >= 4 && (actual.includes(expected) || expected.includes(actual)))); });
+}
+function coordinatesMatch(aLat, aLng, bLat, bLng) {
+  if (![aLat, aLng, bLat, bLng].every(Number.isFinite)) return false;
+  const radians = value => value * Math.PI / 180, dLat = radians(bLat - aLat), dLng = radians(bLng - aLng), lat1 = radians(aLat), lat2 = radians(bLat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h)) <= 750;
+}
+function movementContinuity(stop, orderedStops = sortStops()) {
+  if (stop.category !== "移動") return null;
+  const index = orderedStops.findIndex(item => item.id === stop.id), previous = index > 0 ? orderedStops[index - 1] : null, next = index >= 0 && index < orderedStops.length - 1 ? orderedStops[index + 1] : null;
+  const originMatches = previous ? coordinatesMatch(stop.originLat, stop.originLng, previous.lat, previous.lng) || placeNamesMatch(stop.origin, [previous.destination, previous.address, previous.title]) : null;
+  const nextLat = next?.category === "移動" && Number.isFinite(next.originLat) ? next.originLat : next?.lat, nextLng = next?.category === "移動" && Number.isFinite(next.originLng) ? next.originLng : next?.lng;
+  const destinationMatches = next ? coordinatesMatch(stop.lat, stop.lng, nextLat, nextLng) || placeNamesMatch(stop.destination, [next.category === "移動" ? next.origin : next.address, next.title]) : null;
+  return { previous, next, originMatches, destinationMatches };
+}
+function continuityHtml(stop, orderedStops) {
+  const check = movementContinuity(stop, orderedStops); if (!check) return "";
+  const warnings = [];
+  if (check.previous && !check.originMatches) warnings.push(`A 點與前一項「${check.previous.title}」不一致`);
+  if (check.next && !check.destinationMatches) warnings.push(`B 點與後一項「${check.next.title}」不一致`);
+  if (warnings.length) return `<p class="continuity-status warn">⚠ ${escapeHtml(warnings.join("；"))}</p>`;
+  if (check.previous && check.next) return `<p class="continuity-status ok">A／B 點與前後行程銜接正常</p>`;
+  return `<p class="continuity-status partial">${check.previous ? "B 點無後一項可比對" : "A 點無前一項可比對"}</p>`;
 }
 
 async function apiJsonp(parameters) {
@@ -170,7 +198,7 @@ function renderTimeline() {
     <section class="day-group" data-date="${escapeHtml(date)}"><div class="day-heading"><strong>${escapeHtml(formatDay(date))}</strong><span>${items.length} 個行程項目</span></div>
     ${items.map(s => `<article class="stop-card" data-id="${escapeHtml(s.id)}" data-date="${escapeHtml(s.date)}" draggable="${canEdit()}" title="雙擊可在地圖上顯示">
       ${canEdit() ? `<div class="drag-handle" title="拖拉調整同日順序">⋮⋮</div>` : ""}<div class="stop-time">${escapeHtml(s.startTime || "—")}</div>
-      <div class="stop-body"><h3>${escapeHtml(s.title)}</h3>${s.origin || s.destination ? `<p class="route-detail">${escapeHtml(s.origin || "—")} → ${escapeHtml(s.destination || "—")}</p>` : ""}<p>${escapeHtml(s.address)}</p>${s.cost ? `<p class="cost-detail">料金：${escapeHtml(s.cost)}</p>` : ""}${s.notes ? `<p>${escapeHtml(s.notes)}</p>` : ""}<span class="category">${escapeHtml(s.category)}</span>${s.transportMode ? `<span class="category">${escapeHtml(s.transportMode)}</span>` : ""}</div>
+      <div class="stop-body"><h3>${escapeHtml(s.title)}</h3>${s.origin || s.destination ? `<p class="route-detail">${escapeHtml(s.origin || "—")} → ${escapeHtml(s.destination || "—")}</p>` : ""}${continuityHtml(s, stops)}${s.address ? `<p>${escapeHtml(s.address)}</p>` : ""}${s.cost ? `<p class="cost-detail">料金：${escapeHtml(s.cost)}</p>` : ""}${s.notes ? `<p>${escapeHtml(s.notes)}</p>` : ""}<span class="category">${escapeHtml(s.category)}</span>${s.transportMode ? `<span class="category">${escapeHtml(s.transportMode)}</span>` : ""}</div>
       <div class="stop-actions"><button class="small-btn" data-action="focus" title="在地圖顯示">⌖</button>${canEdit() ? `<button class="small-btn" data-action="edit" title="編輯">✎</button><button class="small-btn" data-action="delete" title="刪除">×</button>` : ""}</div>
     </article>`).join("")}</section>`).join("");
 }
@@ -190,25 +218,37 @@ function createJourney(event) {
   state.data = normalizeTrip({ schemaVersion: 4, trip: { title, startDate, endDate, description: $("newTripDescription").value.trim() }, stops: [] }); state.dirty = true;
   history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; $("newTripDialog").close(); renderAll(); setStatus("新旅程（尚未儲存）"); toast("旅程已建立，現在可以新增行程項目");
 }
+function updateStopFormMode() {
+  const movement = $("stopCategory").value === "移動";
+  document.querySelectorAll(".movement-only").forEach(field => field.hidden = !movement);
+  $("stopAddressField").hidden = movement; $("stopAddress").required = !movement; $("stopOrigin").required = movement; $("stopDestination").required = movement;
+}
 function openStopDialog(stop = null) {
   if (!canEdit()) return state.user ? toast("你沒有編輯這個旅程的權限") : openLogin();
   $("dialogTitle").textContent = stop ? "編輯行程項目" : "新增行程項目"; $("stopId").value = stop?.id || ""; $("stopTitle").value = stop?.title || "";
   $("stopDate").value = stop?.date || state.data.trip.startDate || new Date().toISOString().slice(0, 10); $("stopTime").value = stop?.startTime || ""; $("stopEndTime").value = stop?.endTime || "";
   $("stopCategory").value = normalizeCategory(stop?.category); $("stopTransportMode").value = stop?.transportMode || ""; $("stopOrigin").value = stop?.origin || "";
   $("stopOriginLat").value = stop?.originLat ?? ""; $("stopOriginLng").value = stop?.originLng ?? ""; $("stopDestination").value = stop?.destination || ""; $("stopAddress").value = stop?.address || "";
-  $("stopLat").value = stop?.lat ?? ""; $("stopLng").value = stop?.lng ?? ""; $("stopCost").value = stop?.cost || ""; $("stopNotes").value = stop?.notes || ""; $("formError").textContent = ""; $("stopDialog").showModal();
+  $("stopLat").value = stop?.lat ?? ""; $("stopLng").value = stop?.lng ?? ""; $("stopCost").value = stop?.cost || ""; $("stopNotes").value = stop?.notes || ""; $("formError").textContent = ""; updateStopFormMode(); $("stopDialog").showModal();
 }
 async function submitStop(event) {
-  event.preventDefault(); if (!$("stopTitle").value.trim() || !$("stopDate").value || !$("stopAddress").value.trim()) return $("formError").textContent = "請填寫名稱、日期與地址";
-  $("confirmStopBtn").disabled = true; $("formError").textContent = "正在定位地址…";
+  event.preventDefault(); const category = $("stopCategory").value, movement = category === "移動", origin = $("stopOrigin").value.trim(), destination = $("stopDestination").value.trim(), address = $("stopAddress").value.trim();
+  if (!$("stopTitle").value.trim() || !$("stopDate").value) return $("formError").textContent = "請填寫名稱與日期";
+  if (movement && (!origin || !destination)) return $("formError").textContent = "移動項目請填寫 A 點與 B 點";
+  if (!movement && !address) return $("formError").textContent = "請填寫地址或地點關鍵字";
+  $("confirmStopBtn").disabled = true; $("formError").textContent = movement ? "正在定位 A 點…" : "正在定位地址…";
   try {
-    let lat = finiteOrNull($("stopLat").value), lng = finiteOrNull($("stopLng").value); if (lat == null || lng == null) ({ lat, lng } = await geocode($("stopAddress").value.trim()));
+    let lat = finiteOrNull($("stopLat").value), lng = finiteOrNull($("stopLng").value), originLat = finiteOrNull($("stopOriginLat").value), originLng = finiteOrNull($("stopOriginLng").value);
+    if (movement) {
+      if (originLat == null || originLng == null) ({ lat: originLat, lng: originLng } = await geocode(origin));
+      $("formError").textContent = "正在定位 B 點…";
+      if (lat == null || lng == null) ({ lat, lng } = await geocode(destination));
+    } else if (lat == null || lng == null) ({ lat, lng } = await geocode(address));
     const existing = state.data.stops.find(s => s.id === $("stopId").value), sameDayStops = state.data.stops.filter(s => s.date === $("stopDate").value && s.id !== existing?.id), nextOrder = Math.max(-1, ...sameDayStops.map(s => Number(s.order) || 0)) + 1;
-    const stop = { id: existing?.id || uid(), date: $("stopDate").value, startTime: $("stopTime").value, endTime: $("stopEndTime").value, order: existing?.date === $("stopDate").value ? existing.order : nextOrder, title: $("stopTitle").value.trim(), address: $("stopAddress").value.trim(), lat, lng, category: $("stopCategory").value, transportMode: $("stopTransportMode").value, origin: $("stopOrigin").value.trim(), originLat: finiteOrNull($("stopOriginLat").value), originLng: finiteOrNull($("stopOriginLng").value), destination: $("stopDestination").value.trim(), cost: $("stopCost").value.trim(), notes: $("stopNotes").value.trim() };
-    const prospective = sortStops([...state.data.stops.filter(item => item.id !== stop.id), stop]);
-    if (prospective[0]?.id === stop.id && stop.category === "移動" && stop.transportMode === "飛機" && stop.origin && (stop.originLat == null || stop.originLng == null)) { $("formError").textContent = "正在定位首筆飛機行程的起點機場…"; ({ lat: stop.originLat, lng: stop.originLng } = await geocode(stop.origin)); }
+    const stop = { id: existing?.id || uid(), date: $("stopDate").value, startTime: $("stopTime").value, endTime: $("stopEndTime").value, order: existing?.date === $("stopDate").value ? existing.order : nextOrder, title: $("stopTitle").value.trim(), address: movement ? "" : address, lat, lng, category, transportMode: $("stopTransportMode").value, origin: movement ? origin : "", originLat: movement ? originLat : null, originLng: movement ? originLng : null, destination: movement ? destination : "", cost: $("stopCost").value.trim(), notes: $("stopNotes").value.trim() };
     const index = state.data.stops.findIndex(s => s.id === stop.id); if (index >= 0) state.data.stops[index] = stop; else state.data.stops.push(stop);
     syncTripDates(); $("stopDialog").close(); markDirty(); renderFilters(); renderTimeline(); refreshMap();
+    const check = movementContinuity(stop); if (check && ((check.previous && !check.originMatches) || (check.next && !check.destinationMatches))) toast("移動項目的 A／B 點與前後行程不一致，請查看清單警告");
   } catch (error) { $("formError").textContent = `定位失敗：${error.message}。可手動填入緯度、經度。`; }
   finally { $("confirmStopBtn").disabled = false; }
 }
@@ -250,8 +290,7 @@ async function locateImportedStops(jobId) {
   const tasks = new Map();
   const addTarget = (query, apply) => { const key = normalizeLocationKey(query); if (!key) return; if (!tasks.has(key)) tasks.set(key, { query, targets: [] }); tasks.get(key).targets.push(apply); };
   state.data.stops.forEach(stop => { if (!Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) addTarget(stop.address || stop.destination || stop.origin || stop.title, coordinates => { stop.lat = coordinates.lat; stop.lng = coordinates.lng; }); });
-  const first = sortStops()[0];
-  if (first?.category === "移動" && first.transportMode === "飛機" && first.origin && (!Number.isFinite(first.originLat) || !Number.isFinite(first.originLng))) addTarget(first.origin, coordinates => { first.originLat = coordinates.lat; first.originLng = coordinates.lng; });
+  state.data.stops.filter(stop => stop.category === "移動" && stop.origin).forEach(stop => { if (!Number.isFinite(stop.originLat) || !Number.isFinite(stop.originLng)) addTarget(stop.origin, coordinates => { stop.originLat = coordinates.lat; stop.originLng = coordinates.lng; }); });
   if (!tasks.size) return toast("匯入完成，所有行程項目已有座標");
   let completed = 0, located = 0, failed = 0; setStatus(`匯入定位 0/${tasks.size}…`);
   for (const task of tasks.values()) {
@@ -262,7 +301,7 @@ async function locateImportedStops(jobId) {
     if (completed % 5 === 0 || completed === tasks.size) refreshMap();
   }
   if (state.geocodeJobId !== jobId) return;
-  const suffix = failed ? `，${failed} 個地點需手動確認` : ""; setStatus(`已定位 ${located} 個行程項目${suffix}`); toast(`匯入定位完成${suffix}`);
+  renderTimeline(); const suffix = failed ? `，${failed} 個地點需手動確認` : ""; setStatus(`已定位 ${located} 個端點${suffix}`); toast(`匯入定位完成${suffix}`);
 }
 
 function initMap() {
@@ -296,18 +335,23 @@ function markerLabel(stops) {
   if (numbers.length <= 2) return numbers.join("·");
   return `${numbers[0]}…${numbers.at(-1)}`;
 }
+function visibleMovementLinks() {
+  const sequence = new Map(sortStops().map((stop, index) => [stop.id, index + 1]));
+  return visibleStops().filter(stop => stop.category === "移動" && [stop.originLat, stop.originLng, stop.lat, stop.lng].every(Number.isFinite)).map(stop => ({ ...stop, sequence: sequence.get(stop.id) }));
+}
 function firstFlightOrigin() { const first = sortStops()[0]; if (!first || first.category !== "移動" || first.transportMode !== "飛機" || !Number.isFinite(first.originLat) || !Number.isFinite(first.originLng)) return null; const day = $("dayFilter").value; return day === "all" || first.date === day ? first : null; }
-function clearMapObjects() { state.markers.forEach(m => m.remove()); state.markers = []; state.polylines.forEach(p => p.remove()); state.polylines = []; }
+function clearMapObjects() { state.markers.forEach(m => m.remove()); state.markers = []; state.polylines.forEach(p => p.remove()); state.polylines = []; state.routeLine = null; }
 function refreshMap() {
-  if (!state.mapsReady) return; clearMapObjects(); const groups = markerGroups(), zero = firstFlightOrigin(); if (!groups.length && !zero) return;
+  if (!state.mapsReady) return; clearMapObjects(); const groups = markerGroups(), links = visibleMovementLinks(), zero = firstFlightOrigin(); if (!groups.length && !links.length && !zero) return;
   const bounds = L.latLngBounds();
+  links.forEach(stop => { const line = L.polyline([[stop.originLat, stop.originLng], [stop.lat, stop.lng]], { color: "#5d98a6", opacity: .8, weight: 4, dashArray: "7 7" }).addTo(state.map); line.bindTooltip(`${stop.sequence}. ${escapeHtml(stop.origin)} → ${escapeHtml(stop.destination)}`, { sticky: true }); state.polylines.push(line); bounds.extend([stop.originLat, stop.originLng]); bounds.extend([stop.lat, stop.lng]); });
   if (zero) { const icon = L.divIcon({ className: "trip-number-icon", html: `<div class="pin pin-zero"><span>0</span></div>`, iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -35] }); const marker = L.marker([zero.originLat, zero.originLng], { title: zero.origin, icon }).addTo(state.map); marker.bindPopup(`<h3>旅程起點｜${escapeHtml(zero.origin)}</h3><p>${escapeHtml(zero.date)} ${escapeHtml(zero.startTime)}・飛機</p>`); marker.stopIds = [`${zero.id}:origin`]; state.markers.push(marker); bounds.extend(marker.getLatLng()); }
-  groups.forEach(group => { const label = markerLabel(group.stops), wide = label.length > 2, size = wide ? 44 : 34; const icon = L.divIcon({ className: "trip-number-icon", html: `<div class="pin${wide ? " pin-wide" : ""}"><span>${escapeHtml(label)}</span></div>`, iconSize: [size, 34], iconAnchor: [size / 2, 34], popupAnchor: [0, -35] }); const popup = group.stops.map(stop => `<div class="map-stop"><h3>${stop.sequence}. ${escapeHtml(stop.title)}</h3><p>${escapeHtml(stop.date)} ${escapeHtml(stop.startTime)}・${escapeHtml(stop.category)}</p>${stop.origin || stop.destination ? `<p>${escapeHtml(stop.origin || "—")} → ${escapeHtml(stop.destination || "—")}</p>` : ""}<p>${escapeHtml(stop.address)}</p></div>`).join(""); const marker = L.marker([group.lat, group.lng], { title: group.stops.map(stop => `${stop.sequence}. ${stop.title}`).join(" / "), icon }).addTo(state.map); marker.bindPopup(popup); marker.stopIds = group.stops.map(stop => stop.id); state.markers.push(marker); bounds.extend(marker.getLatLng()); });
+  groups.forEach(group => { const label = markerLabel(group.stops), wide = label.length > 2, size = wide ? 44 : 34; const icon = L.divIcon({ className: "trip-number-icon", html: `<div class="pin${wide ? " pin-wide" : ""}"><span>${escapeHtml(label)}</span></div>`, iconSize: [size, 34], iconAnchor: [size / 2, 34], popupAnchor: [0, -35] }); const popup = group.stops.map(stop => `<div class="map-stop"><h3>${stop.sequence}. ${escapeHtml(stop.title)}</h3><p>${escapeHtml(stop.date)} ${escapeHtml(stop.startTime)}・${escapeHtml(stop.category)}</p>${stop.origin || stop.destination ? `<p>${escapeHtml(stop.origin || "—")} → ${escapeHtml(stop.destination || "—")}</p>` : ""}${stop.address ? `<p>${escapeHtml(stop.address)}</p>` : ""}</div>`).join(""); const marker = L.marker([group.lat, group.lng], { title: group.stops.map(stop => `${stop.sequence}. ${stop.title}`).join(" / "), icon }).addTo(state.map); marker.bindPopup(popup); marker.stopIds = group.stops.map(stop => stop.id); state.markers.push(marker); bounds.extend(marker.getLatLng()); });
   const count = groups.length + (zero ? 1 : 0); if (count === 1) state.map.setView(zero ? [zero.originLat, zero.originLng] : [groups[0].lat, groups[0].lng], 14); else state.map.fitBounds(bounds, { padding: [55, 55] });
 }
-function drawRoute() { if (!state.mapsReady) return toast("地圖尚未載入"); const stops = routePoints(), zero = firstFlightOrigin(), points = [...(zero ? [{ lat: zero.originLat, lng: zero.originLng }] : []), ...stops]; if (points.length < 2) return toast("此日期至少需要兩個已定位地點"); state.polylines.forEach(p => p.remove()); state.polylines = []; const line = L.polyline(points.map(s => [s.lat, s.lng]), { color: "#e76845", opacity: .9, weight: 5, dashArray: "10 8" }).addTo(state.map); state.polylines.push(line); state.map.fitBounds(line.getBounds(), { padding: [55, 55] }); toast("已依行程項目順序連線；實際道路請使用 Google Maps 導航"); }
+function drawRoute() { if (!state.mapsReady) return toast("地圖尚未載入"); const stops = routePoints(), zero = firstFlightOrigin(), points = [...(zero ? [{ lat: zero.originLat, lng: zero.originLng }] : []), ...stops]; if (points.length < 2) return toast("此日期至少需要兩個已定位地點"); if (state.routeLine) { state.routeLine.remove(); state.polylines = state.polylines.filter(line => line !== state.routeLine); } const line = L.polyline(points.map(s => [s.lat, s.lng]), { color: "#e76845", opacity: .9, weight: 5, dashArray: "10 8" }).addTo(state.map); state.routeLine = line; state.polylines.push(line); state.map.fitBounds(line.getBounds(), { padding: [55, 55] }); toast("已依行程項目順序連線；藍線為各移動項目的 A→B 關係"); }
 function openGoogleNavigation() { const candidates = visibleStops().filter(s => s.category !== "移動" && ((Number.isFinite(s.lat) && Number.isFinite(s.lng)) || s.address)); const allStops = candidates.filter((stop, index) => index === 0 || stop.address !== candidates[index - 1].address); if (allStops.length < 2) return toast("至少需要兩個有地址或座標的地點"); const stops = allStops.slice(0, 10), locationOf = stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng) ? `${stop.lat},${stop.lng}` : stop.address, url = new URL("https://www.google.com/maps/dir/"); url.searchParams.set("api", "1"); url.searchParams.set("origin", locationOf(stops[0])); url.searchParams.set("destination", locationOf(stops.at(-1))); if (stops.length > 2) url.searchParams.set("waypoints", stops.slice(1, -1).map(locationOf).join("|")); url.searchParams.set("travelmode", "driving"); window.open(url.toString(), "_blank", "noopener,noreferrer"); if (allStops.length > 10) toast("Google Maps 單次先帶入前 10 個地點"); }
-function focusStop(id) { if (!state.mapsReady) return toast("地圖尚未載入"); const marker = state.markers.find(m => m.stopIds?.includes(id)), stop = state.data.stops.find(s => s.id === id); if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return toast("此項目尚未完成定位"); const zeroMarker = state.markers.find(m => m.stopIds?.includes(`${id}:origin`)); if (zeroMarker) { state.map.fitBounds(L.latLngBounds([zeroMarker.getLatLng(), [stop.lat, stop.lng]]), { padding: [70, 70] }); zeroMarker.openPopup(); return; } if (!marker) { state.map.setView([stop.lat, stop.lng], 15); return; } state.map.setView(marker.getLatLng(), 15); marker.openPopup(); }
+function focusStop(id) { if (!state.mapsReady) return toast("地圖尚未載入"); const marker = state.markers.find(m => m.stopIds?.includes(id)), stop = state.data.stops.find(s => s.id === id); if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return toast("此項目尚未完成定位"); if (stop.category === "移動" && Number.isFinite(stop.originLat) && Number.isFinite(stop.originLng)) { state.map.fitBounds(L.latLngBounds([[stop.originLat, stop.originLng], [stop.lat, stop.lng]]), { padding: [70, 70] }); marker?.openPopup(); return; } if (!marker) { state.map.setView([stop.lat, stop.lng], 15); return; } state.map.setView(marker.getLatLng(), 15); marker.openPopup(); }
 
 function parseCsv(text) { const rows = []; let row = [], cell = "", quoted = false; for (let i = 0; i < text.length; i++) { const ch = text[i], next = text[i + 1]; if (ch === '"' && quoted && next === '"') { cell += '"'; i++; } else if (ch === '"') quoted = !quoted; else if (ch === "," && !quoted) { row.push(cell); cell = ""; } else if ((ch === "\n" || ch === "\r") && !quoted) { if (ch === "\r" && next === "\n") i++; row.push(cell); if (row.some(v => v.trim())) rows.push(row); row = []; cell = ""; } else cell += ch; } row.push(cell); if (row.some(v => v.trim())) rows.push(row); if (rows.length < 2) throw new Error("CSV 沒有資料"); const headers = rows[0].map(h => h.trim().toLowerCase()); return rows.slice(1).map(values => Object.fromEntries(headers.map((h, i) => [h, values[i]?.trim() || ""]))); }
 function pickField(row, ...names) { for (const name of names) if (row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== "") return row[name]; return ""; }
@@ -315,7 +359,7 @@ function excelDate(value) { if (value instanceof Date) return value.toISOString(
 function excelTime(value) { if (value === "" || value == null) return ""; if (typeof value === "number") { const minutes = Math.round((value % 1) * 1440) % 1440; return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`; } if (value instanceof Date) return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`; const match = String(value).trim().match(/(\d{1,2}):(\d{2})/); return match ? `${match[1].padStart(2, "0")}:${match[2]}` : ""; }
 function inferCategory(type, title, origin, destination) { if (String(type || "").trim()) return normalizeCategory(type); const text = `${title} ${origin} ${destination}`; if (origin || destination || /自駕|開車|飛機|航班|CI\d+|JR|新幹線|特急|電車|市電|巴士|バス|Taxi|計程車|步行|接送|入境|到着|取車|還車/i.test(text)) return "移動"; if (/午餐|晚餐|早餐|用餐|餐廳|市場|食事|弁当|咖啡|拉麵|飯|料理/i.test(text)) return "食事"; if (/飯店|旅館|ホテル|宿|休息|休憩|入住|Check.?in/i.test(text)) return "休憩"; return "觀光"; }
 function inferTransportMode(title) { const text = String(title || ""); if (/自駕|開車|取車|還車/.test(text)) return "自駕"; if (/CI\d+|飛機|航班/.test(text)) return "飛機"; if (/JR|新幹線|特急|鉄道|鐵路/.test(text)) return "鐵路"; if (/市電/.test(text)) return "市電"; if (/巴士|バス|接送/.test(text)) return "巴士"; if (/Taxi|計程車/i.test(text)) return "計程車"; if (/步行/.test(text)) return "步行"; return ""; }
-function referenceRowsToTrip(rows, filename) { const stops = rows.map((row, index) => { const title = String(pickField(row, "項目", "item", "title", "地點名稱", "名稱") || "").trim(), origin = String(pickField(row, "起", "origin", "from", "起點") || "").trim(), destination = String(pickField(row, "迄", "destination", "to", "迄點") || "").trim(), type = pickField(row, "類型", "类型", "type", "category"); return { id: uid(), order: index, date: excelDate(pickField(row, "日期", "date")), startTime: excelTime(pickField(row, "啟程時間", "启程时间", "startTime", "starttime", "time", "開始時間")), endTime: excelTime(pickField(row, "到達時間", "到达时间", "endTime", "endtime", "結束時間")), title: title || destination || origin || "未命名項目", origin, destination, address: String(pickField(row, "地址", "address") || destination || origin || title).trim(), lat: finiteOrNull(pickField(row, "緯度", "lat", "latitude")), lng: finiteOrNull(pickField(row, "經度", "lng", "longitude")), originLat: finiteOrNull(pickField(row, "起點緯度", "originLat", "originlat")), originLng: finiteOrNull(pickField(row, "起點經度", "originLng", "originlng")), category: inferCategory(type, title, origin, destination), transportMode: String(pickField(row, "移動方式", "transportMode", "transportmode") || inferTransportMode(title)), cost: String(pickField(row, "料金", "費用", "cost", "fee") || "").trim(), notes: String(pickField(row, "備註", "notes", "note") || "").trim() }; }).filter(stop => stop.date || stop.title !== "未命名項目"); const dayOrders = new Map(); stops.forEach(stop => { const key = stop.date || ""; stop.order = dayOrders.get(key) || 0; dayOrders.set(key, stop.order + 1); }); const dates = stops.map(s => s.date).filter(Boolean).sort(); return normalizeTrip({ schemaVersion: 4, trip: { title: filename.replace(/\.(xlsx?|csv)$/i, ""), startDate: dates[0], endDate: dates.at(-1), description: "由旅程檔案匯入" }, stops }); }
+function referenceRowsToTrip(rows, filename) { const stops = rows.map((row, index) => { const title = String(pickField(row, "項目", "item", "title", "地點名稱", "名稱") || "").trim(), origin = String(pickField(row, "起", "origin", "from", "起點") || "").trim(), destination = String(pickField(row, "迄", "destination", "to", "迄點") || "").trim(), type = pickField(row, "類型", "类型", "type", "category"); return { id: uid(), order: index, date: excelDate(pickField(row, "日期", "date")), startTime: excelTime(pickField(row, "啟程時間", "启程时间", "startTime", "starttime", "time", "開始時間")), endTime: excelTime(pickField(row, "到達時間", "到达时间", "endTime", "endtime", "結束時間")), title: title || destination || origin || "未命名項目", origin, destination, address: String(pickField(row, "地址", "address") || destination || origin || title).trim(), lat: finiteOrNull(pickField(row, "緯度", "lat", "latitude")), lng: finiteOrNull(pickField(row, "經度", "lng", "longitude")), originLat: finiteOrNull(pickField(row, "起點緯度", "originLat", "originlat")), originLng: finiteOrNull(pickField(row, "起點經度", "originLng", "originlng")), category: inferCategory(type, title, origin, destination), transportMode: String(pickField(row, "移動方式", "transportMode", "transportmode") || inferTransportMode(title)), cost: String(pickField(row, "料金", "費用", "cost", "fee") || "").trim(), notes: String(pickField(row, "備註", "notes", "note") || "").trim() }; }).filter(stop => stop.date || stop.title !== "未命名項目"); const dayOrders = new Map(); stops.forEach(stop => { const key = stop.date || ""; stop.order = dayOrders.get(key) || 0; if (stop.category === "移動") stop.address = ""; dayOrders.set(key, stop.order + 1); }); const dates = stops.map(s => s.date).filter(Boolean).sort(); return normalizeTrip({ schemaVersion: 4, trip: { title: filename.replace(/\.(xlsx?|csv)$/i, ""), startDate: dates[0], endDate: dates.at(-1), description: "由旅程檔案匯入" }, stops }); }
 async function importExcel(file) { if (!window.XLSX) throw new Error("Excel 解析元件尚未載入"); const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false }), firstSheet = workbook.Sheets[workbook.SheetNames[0]]; if (!firstSheet) throw new Error("Excel 沒有工作表"); const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: true }); if (!rows.length) throw new Error("Excel 沒有旅程資料"); return referenceRowsToTrip(rows, file.name); }
 async function importFile(file) { if (!state.user) return openLogin(); try { const lower = file.name.toLowerCase(); if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) state.data = await importExcel(file); else if (lower.endsWith(".json")) state.data = normalizeTrip(JSON.parse(await file.text())); else state.data = referenceRowsToTrip(parseCsv(await file.text()), file.name); state.tripId = ""; state.hasJourney = true; state.owner = state.user.username; state.tripCanEdit = true; const jobId = ++state.geocodeJobId; history.replaceState(null, "", location.pathname); renderAll(); markDirty(); toast(`已匯入 ${state.data.stops.length} 個行程項目，正在背景定位`); void locateImportedStops(jobId); } catch (error) { toast(`匯入失敗：${error.message}`); } finally { $("fileInput").value = ""; } }
 function exportJson() { if (!state.hasJourney) return toast("目前沒有可匯出的旅程"); syncMetaFromForm(); const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${state.data.trip.title || "trip"}.json`; a.click(); URL.revokeObjectURL(a.href); }
@@ -387,6 +431,10 @@ function selectUserRow(button) { $("userUsername").value = button.dataset.userna
 
 function bindEvents() {
   $("tripTitle").addEventListener("input", autoRender); $("saveBtn").addEventListener("click", saveTrip); $("shareBtn").addEventListener("click", openShare); $("newTripBtn").addEventListener("click", openNewTripDialog); $("addItemBtn").addEventListener("click", () => openStopDialog());
+  $("stopCategory").addEventListener("change", updateStopFormMode);
+  $("stopOrigin").addEventListener("input", () => { $("stopOriginLat").value = ""; $("stopOriginLng").value = ""; });
+  $("stopDestination").addEventListener("input", () => { $("stopLat").value = ""; $("stopLng").value = ""; });
+  $("stopAddress").addEventListener("input", () => { $("stopLat").value = ""; $("stopLng").value = ""; });
   $("loginBtn").addEventListener("click", openLogin); $("accountBtn").addEventListener("click", logout); $("adminBtn").addEventListener("click", openUserAdmin); $("loginForm").addEventListener("submit", submitLogin); $("newTripForm").addEventListener("submit", createJourney); $("stopForm").addEventListener("submit", submitStop); $("userForm").addEventListener("submit", submitUser); $("resetUserFormBtn").addEventListener("click", resetUserForm);
   $("fileInput").addEventListener("change", e => e.target.files[0] && importFile(e.target.files[0])); $("exportBtn").addEventListener("click", exportJson); $("refreshTripsBtn").addEventListener("click", () => refreshTripList(true)); $("clearTripViewBtn").addEventListener("click", clearTripView);
   $("cancelDraftBtn").addEventListener("click", cancelDraft); $("deleteTripBtn").addEventListener("click", deleteTrip);

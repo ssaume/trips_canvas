@@ -22,6 +22,8 @@
 .clear-trip-btn{align-self:stretch;margin:14px 0 4px;color:var(--accent-dark)!important}
 .pin-zero{background:var(--ink)}
 .pin-wide{width:44px;border-radius:45% 45% 45% 8px}.pin-wide span{font-size:10px}.map-stop+.map-stop{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}.map-stop h3,.map-stop p{margin:2px 0}
+.movement-only[hidden],#stopAddressField[hidden]{display:none!important}.continuity-status{margin:7px 0!important;padding:6px 9px;border-radius:8px;font-weight:600}.continuity-status.ok{background:#e5f4ea;color:#2f7850!important}.continuity-status.warn{background:#fff0e6;color:#a94b2d!important}.continuity-status.partial{background:#eef2f5;color:#687b8d!important}
+.map-legend{position:absolute;right:14px;top:14px;z-index:3;display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.92);box-shadow:0 5px 16px rgba(23,50,77,.16);font-size:11px;font-weight:700}.map-legend span{width:28px;border-top:3px dashed var(--sea)}
 
 /* v1.4 account, permissions and draggable itinerary */
 .brand-copy{display:flex;flex-direction:column;line-height:1.05}.brand-copy strong{font-size:15px}.brand-copy small{margin-top:4px;color:var(--muted);font-size:9px;font-weight:600;letter-spacing:.04em}.guest-badge{padding:6px 9px;border-radius:999px;background:#eef4f4;color:var(--sea);font-size:11px;font-weight:700}.trip-owner{margin:4px 0 16px;color:var(--muted);font-size:11px}.view-dates{display:block;margin:0 0 2px;color:var(--muted)}
