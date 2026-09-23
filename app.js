@@ -148,6 +148,9 @@ function renderMode() {
   const editable = canEdit(); document.body.classList.toggle("read-only", !editable);
   $("addItemBtn").disabled = !editable; $("saveBtn").disabled = !editable; $("exportBtn").disabled = !state.hasJourney;
   $("tripTitle").disabled = !editable; $("shareBtn").disabled = !state.tripId;
+  $("cancelDraftBtn").hidden = !(state.user && state.hasJourney && !state.tripId);
+  $("deleteTripBtn").hidden = !(state.tripId && editable);
+  $("mobileTripTitle").textContent = state.data.trip.title || "行程面板";
   $("emptyState").querySelector("p").textContent = state.user ? "請先新增旅程，再新增行程項目；也可以直接上傳旅程檔。" : "訪客可從上方『選擇旅程』檢視大家上傳的資料；登入後才能新增與編輯。";
 }
 
@@ -281,7 +284,47 @@ async function refreshTripList() {
   catch (error) { toast(`旅程清單讀取失敗：${error.message}`); }
 }
 function loadDemoTrip(id) { const demo = (window.TRIP_DEMOS || []).find(item => item.id === id); if (!demo) return toast("找不到示範旅程"); if (state.dirty && !confirm("目前有未儲存變更，確定載入示範旅程？")) return; state.tripId = ""; state.hasJourney = true; state.owner = "示範資料"; state.tripCanEdit = Boolean(state.user); state.data = normalizeTrip(structuredClone(demo.data)); state.dirty = Boolean(state.user); history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; renderAll(); setStatus(state.user ? "示範資料（可另存新旅程）" : "示範資料（訪客檢視）"); toast(state.user ? "已載入示範旅程；儲存後會建立你的副本" : "已載入示範旅程資料"); }
-function clearTripView() { if (!state.hasJourney) return toast("目前畫面已是空白"); if (state.dirty && !confirm("目前有未儲存變更，確定清空畫面？已上傳旅程不會被刪除。")) return; state.tripId = ""; state.hasJourney = false; state.owner = ""; state.tripCanEdit = false; state.data = freshTrip(); state.dirty = false; history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; renderAll(); setStatus("尚未選擇旅程"); toast("已清空畫面；已上傳旅程仍保留"); }
+function resetJourneyState(message) {
+  state.tripId = ""; state.hasJourney = false; state.owner = ""; state.tripCanEdit = false; state.data = freshTrip(); state.dirty = false;
+  history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; renderAll(); setStatus("尚未選擇旅程"); if (message) toast(message);
+}
+function clearTripView() {
+  if (!state.hasJourney) return toast("目前畫面已是空白");
+  if (state.dirty && !confirm("目前有未儲存變更，確定清空畫面？已上傳旅程不會被刪除。")) return;
+  resetJourneyState("已清空畫面；已上傳旅程仍保留");
+}
+function cancelDraft() {
+  if (!state.hasJourney || state.tripId) return;
+  if (!confirm(`確定放棄尚未儲存的旅程「${state.data.trip.title || "未命名旅程"}」？`)) return;
+  resetJourneyState("已放棄未儲存的旅程草稿");
+}
+async function deleteTrip() {
+  if (!state.tripId || !canEdit()) return toast("你沒有刪除此旅程的權限");
+  const title = state.data.trip.title || "未命名旅程";
+  if (!confirm(`確定永久刪除旅程「${title}」？此操作無法由網站復原。`)) return;
+  $("deleteTripBtn").disabled = true; setStatus("刪除中…");
+  try {
+    await apiPost({ action: "delete", id: state.tripId, token: state.token });
+    resetJourneyState("旅程已刪除"); await refreshTripList();
+  } catch (error) { setStatus("刪除失敗"); toast(error.message); }
+  finally { $("deleteTripBtn").disabled = false; renderMode(); }
+}
+
+function setMobilePanel(expanded) {
+  document.body.classList.toggle("mobile-panel-collapsed", !expanded);
+  $("mobilePanelToggleBtn").textContent = expanded ? "收合" : "展開";
+  $("mobileListBtn").textContent = expanded ? "收合行程面板" : "展開行程面板";
+  setTimeout(() => state.map?.invalidateSize(), 260);
+}
+function toggleMobilePanel() { setMobilePanel(document.body.classList.contains("mobile-panel-collapsed")); }
+function initResponsiveLayout() {
+  const media = matchMedia("(max-width: 820px)");
+  if (media.matches) setMobilePanel(false);
+  media.addEventListener?.("change", event => {
+    if (event.matches) setMobilePanel(false);
+    else { document.body.classList.remove("mobile-panel-collapsed"); setTimeout(() => state.map?.invalidateSize(), 260); }
+  });
+}
 
 async function openUserAdmin() { if (!isAdmin()) return; resetUserForm(); $("userDialog").showModal(); await refreshUsers(); }
 function resetUserForm() { $("userUsername").value = ""; $("userUsername").disabled = false; $("userRole").value = "user"; $("userPassword").value = ""; $("userActive").checked = true; $("userError").textContent = ""; }
@@ -293,6 +336,7 @@ function bindEvents() {
   $("tripTitle").addEventListener("input", autoRender); $("saveBtn").addEventListener("click", saveTrip); $("shareBtn").addEventListener("click", openShare); $("newTripBtn").addEventListener("click", openNewTripDialog); $("addItemBtn").addEventListener("click", () => openStopDialog());
   $("loginBtn").addEventListener("click", openLogin); $("accountBtn").addEventListener("click", logout); $("adminBtn").addEventListener("click", openUserAdmin); $("loginForm").addEventListener("submit", submitLogin); $("newTripForm").addEventListener("submit", createJourney); $("stopForm").addEventListener("submit", submitStop); $("userForm").addEventListener("submit", submitUser); $("resetUserFormBtn").addEventListener("click", resetUserForm);
   $("fileInput").addEventListener("change", e => e.target.files[0] && importFile(e.target.files[0])); $("exportBtn").addEventListener("click", exportJson); $("refreshTripsBtn").addEventListener("click", refreshTripList); $("clearTripViewBtn").addEventListener("click", clearTripView);
+  $("cancelDraftBtn").addEventListener("click", cancelDraft); $("deleteTripBtn").addEventListener("click", deleteTrip);
   $("tripPicker").addEventListener("toggle", () => { if ($("tripPicker").open) refreshTripList(); });
   $("tripListContent").addEventListener("click", e => { const item = e.target.closest("[data-trip-id]"); if (!item) return; item.dataset.tripSource === "demo" ? loadDemoTrip(item.dataset.tripId) : loadTripById(item.dataset.tripId); });
   $("userList").addEventListener("click", e => { const row = e.target.closest(".user-row"); if (row) selectUserRow(row); });
@@ -306,10 +350,11 @@ function bindEvents() {
   $("timeline").addEventListener("dragend", () => { state.draggedStopId = ""; document.querySelectorAll(".dragging,.drag-over").forEach(el => el.classList.remove("dragging", "drag-over")); });
   document.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => $(button.dataset.close).close()));
   document.querySelectorAll("[data-copy]").forEach(button => button.addEventListener("click", async () => { await navigator.clipboard.writeText($(button.dataset.copy).value); toast("連結已複製"); }));
-  $("mobileListBtn").addEventListener("click", () => document.querySelector(".side-panel").scrollIntoView({ behavior: "smooth" }));
+  $("mobileListBtn").addEventListener("click", toggleMobilePanel); $("mobilePanelToggleBtn").addEventListener("click", toggleMobilePanel);
   addEventListener("beforeunload", e => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
 }
 
 bindEvents();
+initResponsiveLayout();
 await restoreSession();
 await Promise.all([loadInitialTrip(), initMap(), refreshTripList()]);

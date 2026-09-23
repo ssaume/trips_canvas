@@ -13,12 +13,14 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span class="brand-copy"><strong>TripCanvas</strong><small>v1.4.0 · © ssaume</small></span></a>
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span class="brand-copy"><strong>TripCanvas</strong><small>v1.5.0 · © ssaume</small></span></a>
     <div class="top-actions">
       <span id="syncStatus" class="status-pill">尚未儲存</span>
       <span id="guestBadge" class="guest-badge">訪客模式</span>
       <button id="newTripBtn" class="btn ghost auth-only" type="button">＋ 新增旅程</button>
       <button id="saveBtn" class="btn primary write-only" type="button">儲存</button>
+      <button id="cancelDraftBtn" class="btn ghost" type="button" hidden>放棄草稿</button>
+      <button id="deleteTripBtn" class="btn danger" type="button" hidden>刪除旅程</button>
       <button id="shareBtn" class="btn ghost" type="button">分享</button>
       <button id="adminBtn" class="btn ghost admin-only" type="button">帳號管理</button>
       <button id="accountBtn" class="btn ghost auth-only" type="button"></button>
@@ -28,6 +30,10 @@
 
   <main class="app-shell">
     <section class="side-panel">
+      <div class="mobile-panel-head">
+        <span><strong id="mobileTripTitle">行程面板</strong><small>展開後可查看與編輯行程</small></span>
+        <button id="mobilePanelToggleBtn" class="btn ghost" type="button">收合</button>
+      </div>
       <div class="trip-heading">
         <p class="eyebrow">YOUR JOURNEY</p>
         <input id="tripTitle" class="title-input editor-control" value="" aria-label="旅程名稱" placeholder="請先新增或載入旅程">
@@ -67,7 +73,7 @@
     <section class="map-panel">
       <div id="map"></div>
       <div id="mapNotice" class="map-notice">地圖載入中…</div>
-      <button id="mobileListBtn" class="mobile-list-btn" type="button">查看行程項目</button>
+      <button id="mobileListBtn" class="mobile-list-btn" type="button">展開行程面板</button>
     </section>
   </main>
 
