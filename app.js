@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const SESSION_KEY = "tripcanvas-session-v1";
 const GEOCODE_CACHE_KEY = "tripcanvas-geocode-cache-v1";
+const DESKTOP_PANEL_KEY = "tripcanvas-desktop-panel-collapsed-v1";
 const TRIP_LIST_CACHE_MS = 60000;
 
 const state = {
@@ -344,14 +345,41 @@ function clearMapObjects() { state.markers.forEach(m => m.remove()); state.marke
 function refreshMap() {
   if (!state.mapsReady) return; clearMapObjects(); const groups = markerGroups(), links = visibleMovementLinks(), zero = firstFlightOrigin(); if (!groups.length && !links.length && !zero) return;
   const bounds = L.latLngBounds();
-  links.forEach(stop => { const line = L.polyline([[stop.originLat, stop.originLng], [stop.lat, stop.lng]], { color: "#5d98a6", opacity: .8, weight: 4, dashArray: "7 7" }).addTo(state.map); line.bindTooltip(`${stop.sequence}. ${escapeHtml(stop.origin)} → ${escapeHtml(stop.destination)}`, { sticky: true }); state.polylines.push(line); bounds.extend([stop.originLat, stop.originLng]); bounds.extend([stop.lat, stop.lng]); });
+  links.forEach(stop => {
+    const line = L.polyline([[stop.originLat, stop.originLng], [stop.lat, stop.lng]], { color: "#5d98a6", opacity: .8, weight: 4, dashArray: "7 7" }).addTo(state.map);
+    line.bindTooltip(`${stop.sequence}. ${escapeHtml(stop.origin)} → ${escapeHtml(stop.destination)}`, { sticky: true });
+    line.stopId = stop.id; line.isMovementLine = true; state.polylines.push(line);
+    bounds.extend([stop.originLat, stop.originLng]); bounds.extend([stop.lat, stop.lng]);
+  });
   if (zero) { const icon = L.divIcon({ className: "trip-number-icon", html: `<div class="pin pin-zero"><span>0</span></div>`, iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -35] }); const marker = L.marker([zero.originLat, zero.originLng], { title: zero.origin, icon }).addTo(state.map); marker.bindPopup(`<h3>旅程起點｜${escapeHtml(zero.origin)}</h3><p>${escapeHtml(zero.date)} ${escapeHtml(zero.startTime)}・飛機</p>`); marker.stopIds = [`${zero.id}:origin`]; state.markers.push(marker); bounds.extend(marker.getLatLng()); }
   groups.forEach(group => { const label = markerLabel(group.stops), wide = label.length > 2, size = wide ? 44 : 34; const icon = L.divIcon({ className: "trip-number-icon", html: `<div class="pin${wide ? " pin-wide" : ""}"><span>${escapeHtml(label)}</span></div>`, iconSize: [size, 34], iconAnchor: [size / 2, 34], popupAnchor: [0, -35] }); const popup = group.stops.map(stop => `<div class="map-stop"><h3>${stop.sequence}. ${escapeHtml(stop.title)}</h3><p>${escapeHtml(stop.date)} ${escapeHtml(stop.startTime)}・${escapeHtml(stop.category)}</p>${stop.origin || stop.destination ? `<p>${escapeHtml(stop.origin || "—")} → ${escapeHtml(stop.destination || "—")}</p>` : ""}${stop.address ? `<p>${escapeHtml(stop.address)}</p>` : ""}</div>`).join(""); const marker = L.marker([group.lat, group.lng], { title: group.stops.map(stop => `${stop.sequence}. ${stop.title}`).join(" / "), icon }).addTo(state.map); marker.bindPopup(popup); marker.stopIds = group.stops.map(stop => stop.id); state.markers.push(marker); bounds.extend(marker.getLatLng()); });
   const count = groups.length + (zero ? 1 : 0); if (count === 1) state.map.setView(zero ? [zero.originLat, zero.originLng] : [groups[0].lat, groups[0].lng], 14); else state.map.fitBounds(bounds, { padding: [55, 55] });
 }
 function drawRoute() { if (!state.mapsReady) return toast("地圖尚未載入"); const stops = routePoints(), zero = firstFlightOrigin(), points = [...(zero ? [{ lat: zero.originLat, lng: zero.originLng }] : []), ...stops]; if (points.length < 2) return toast("此日期至少需要兩個已定位地點"); if (state.routeLine) { state.routeLine.remove(); state.polylines = state.polylines.filter(line => line !== state.routeLine); } const line = L.polyline(points.map(s => [s.lat, s.lng]), { color: "#e76845", opacity: .9, weight: 5, dashArray: "10 8" }).addTo(state.map); state.routeLine = line; state.polylines.push(line); state.map.fitBounds(line.getBounds(), { padding: [55, 55] }); toast("已依行程項目順序連線；藍線為各移動項目的 A→B 關係"); }
 function openGoogleNavigation() { const candidates = visibleStops().filter(s => s.category !== "移動" && ((Number.isFinite(s.lat) && Number.isFinite(s.lng)) || s.address)); const allStops = candidates.filter((stop, index) => index === 0 || stop.address !== candidates[index - 1].address); if (allStops.length < 2) return toast("至少需要兩個有地址或座標的地點"); const stops = allStops.slice(0, 10), locationOf = stop => Number.isFinite(stop.lat) && Number.isFinite(stop.lng) ? `${stop.lat},${stop.lng}` : stop.address, url = new URL("https://www.google.com/maps/dir/"); url.searchParams.set("api", "1"); url.searchParams.set("origin", locationOf(stops[0])); url.searchParams.set("destination", locationOf(stops.at(-1))); if (stops.length > 2) url.searchParams.set("waypoints", stops.slice(1, -1).map(locationOf).join("|")); url.searchParams.set("travelmode", "driving"); window.open(url.toString(), "_blank", "noopener,noreferrer"); if (allStops.length > 10) toast("Google Maps 單次先帶入前 10 個地點"); }
-function focusStop(id) { if (!state.mapsReady) return toast("地圖尚未載入"); const marker = state.markers.find(m => m.stopIds?.includes(id)), stop = state.data.stops.find(s => s.id === id); if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return toast("此項目尚未完成定位"); if (stop.category === "移動" && Number.isFinite(stop.originLat) && Number.isFinite(stop.originLng)) { state.map.fitBounds(L.latLngBounds([[stop.originLat, stop.originLng], [stop.lat, stop.lng]]), { padding: [70, 70] }); marker?.openPopup(); return; } if (!marker) { state.map.setView([stop.lat, stop.lng], 15); return; } state.map.setView(marker.getLatLng(), 15); marker.openPopup(); }
+function resetMovementLineStyles() {
+  state.polylines.filter(line => line.isMovementLine).forEach(line => line.setStyle({ color: "#5d98a6", opacity: .8, weight: 4, dashArray: "7 7" }));
+}
+function focusStop(id) {
+  if (!state.mapsReady) return toast("地圖尚未載入");
+  const stop = state.data.stops.find(item => item.id === id);
+  if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return toast("此項目尚未完成定位");
+  if ($("dayFilter")?.value !== "all" && $("dayFilter").value !== stop.date) { $("dayFilter").value = stop.date; refreshMap(); }
+  resetMovementLineStyles();
+  if (stop.category === "移動") {
+    if (!Number.isFinite(stop.originLat) || !Number.isFinite(stop.originLng)) return toast("此移動項目的 A 點尚未完成定位");
+    const line = state.polylines.find(item => item.isMovementLine && item.stopId === id);
+    if (line) {
+      line.setStyle({ color: "#e76845", opacity: 1, weight: 7, dashArray: null });
+      line.bringToFront?.(); line.openTooltip?.();
+      state.map.fitBounds(line.getBounds(), { padding: [80, 80], maxZoom: 14 });
+    } else state.map.fitBounds(L.latLngBounds([[stop.originLat, stop.originLng], [stop.lat, stop.lng]]), { padding: [80, 80], maxZoom: 14 });
+    return;
+  }
+  const marker = state.markers.find(item => item.stopIds?.includes(id));
+  if (!marker) { state.map.setView([stop.lat, stop.lng], 16); return; }
+  state.map.setView(marker.getLatLng(), 16); marker.openPopup();
+}
 
 function parseCsv(text) { const rows = []; let row = [], cell = "", quoted = false; for (let i = 0; i < text.length; i++) { const ch = text[i], next = text[i + 1]; if (ch === '"' && quoted && next === '"') { cell += '"'; i++; } else if (ch === '"') quoted = !quoted; else if (ch === "," && !quoted) { row.push(cell); cell = ""; } else if ((ch === "\n" || ch === "\r") && !quoted) { if (ch === "\r" && next === "\n") i++; row.push(cell); if (row.some(v => v.trim())) rows.push(row); row = []; cell = ""; } else cell += ch; } row.push(cell); if (row.some(v => v.trim())) rows.push(row); if (rows.length < 2) throw new Error("CSV 沒有資料"); const headers = rows[0].map(h => h.trim().toLowerCase()); return rows.slice(1).map(values => Object.fromEntries(headers.map((h, i) => [h, values[i]?.trim() || ""]))); }
 function pickField(row, ...names) { for (const name of names) if (row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== "") return row[name]; return ""; }
@@ -414,12 +442,24 @@ function setMobilePanel(expanded) {
   setTimeout(() => state.map?.invalidateSize(), 260);
 }
 function toggleMobilePanel() { setMobilePanel(document.body.classList.contains("mobile-panel-collapsed")); }
+function setDesktopPanel(expanded, persist = true) {
+  document.body.classList.toggle("desktop-panel-collapsed", !expanded);
+  const button = $("desktopPanelToggleBtn");
+  button.textContent = expanded ? "‹" : "›";
+  button.setAttribute("aria-expanded", String(expanded));
+  button.setAttribute("aria-label", expanded ? "收合行程面板" : "展開行程面板");
+  button.title = expanded ? "收合行程面板" : "展開行程面板";
+  if (persist) localStorage.setItem(DESKTOP_PANEL_KEY, expanded ? "0" : "1");
+  setTimeout(() => state.map?.invalidateSize(), 260);
+}
+function toggleDesktopPanel() { setDesktopPanel(document.body.classList.contains("desktop-panel-collapsed")); }
 function initResponsiveLayout() {
   const media = matchMedia("(max-width: 820px)");
-  if (media.matches) setMobilePanel(false);
+  if (media.matches) { document.body.classList.remove("desktop-panel-collapsed"); setMobilePanel(false); }
+  else setDesktopPanel(localStorage.getItem(DESKTOP_PANEL_KEY) !== "1", false);
   media.addEventListener?.("change", event => {
-    if (event.matches) setMobilePanel(false);
-    else { document.body.classList.remove("mobile-panel-collapsed"); setTimeout(() => state.map?.invalidateSize(), 260); }
+    if (event.matches) { document.body.classList.remove("desktop-panel-collapsed"); setMobilePanel(false); }
+    else { document.body.classList.remove("mobile-panel-collapsed"); setDesktopPanel(localStorage.getItem(DESKTOP_PANEL_KEY) !== "1", false); }
   });
 }
 
@@ -442,8 +482,7 @@ function bindEvents() {
   $("tripListContent").addEventListener("click", e => { const item = e.target.closest("[data-trip-id]"); if (!item) return; item.dataset.tripSource === "demo" ? loadDemoTrip(item.dataset.tripId) : loadTripById(item.dataset.tripId); });
   $("userList").addEventListener("click", e => { const row = e.target.closest(".user-row"); if (row) selectUserRow(row); });
   $("dayFilter").addEventListener("change", refreshMap); $("routeBtn").addEventListener("click", drawRoute); $("navBtn").addEventListener("click", openGoogleNavigation);
-  $("timeline").addEventListener("click", e => { const button = e.target.closest("button[data-action]"); if (!button) return; const id = button.closest(".stop-card").dataset.id; if (button.dataset.action === "focus") focusStop(id); if (button.dataset.action === "edit") openStopDialog(state.data.stops.find(s => s.id === id)); if (button.dataset.action === "delete" && canEdit() && confirm("確定刪除此行程項目？")) { state.data.stops = state.data.stops.filter(s => s.id !== id); syncTripDates(); markDirty(); renderFilters(); renderTimeline(); refreshMap(); } });
-  $("timeline").addEventListener("dblclick", e => { if (e.target.closest("button")) return; const card = e.target.closest(".stop-card"); if (card) focusStop(card.dataset.id); });
+  $("timeline").addEventListener("click", e => { const card = e.target.closest(".stop-card"); if (!card) return; const button = e.target.closest("button[data-action]"), id = card.dataset.id; if (!button) { if (!e.target.closest(".drag-handle") && !state.draggedStopId) focusStop(id); return; } if (button.dataset.action === "focus") focusStop(id); if (button.dataset.action === "edit") openStopDialog(state.data.stops.find(s => s.id === id)); if (button.dataset.action === "delete" && canEdit() && confirm("確定刪除此行程項目？")) { state.data.stops = state.data.stops.filter(s => s.id !== id); syncTripDates(); markDirty(); renderFilters(); renderTimeline(); refreshMap(); } });
   $("timeline").addEventListener("dragstart", e => { const card = e.target.closest(".stop-card"); if (!card || !canEdit()) return e.preventDefault(); state.draggedStopId = card.dataset.id; card.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", card.dataset.id); });
   $("timeline").addEventListener("dragover", e => { if (!state.draggedStopId) return; const card = e.target.closest(".stop-card"); if (card) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; card.classList.add("drag-over"); } });
   $("timeline").addEventListener("dragleave", e => e.target.closest(".stop-card")?.classList.remove("drag-over"));
@@ -451,7 +490,7 @@ function bindEvents() {
   $("timeline").addEventListener("dragend", () => { state.draggedStopId = ""; document.querySelectorAll(".dragging,.drag-over").forEach(el => el.classList.remove("dragging", "drag-over")); });
   document.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => $(button.dataset.close).close()));
   document.querySelectorAll("[data-copy]").forEach(button => button.addEventListener("click", async () => { await navigator.clipboard.writeText($(button.dataset.copy).value); toast("連結已複製"); }));
-  $("mobileListBtn").addEventListener("click", toggleMobilePanel); $("mobilePanelToggleBtn").addEventListener("click", toggleMobilePanel);
+  $("mobileListBtn").addEventListener("click", toggleMobilePanel); $("mobilePanelToggleBtn").addEventListener("click", toggleMobilePanel); $("desktopPanelToggleBtn").addEventListener("click", toggleDesktopPanel);
   addEventListener("beforeunload", e => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
 }
 
