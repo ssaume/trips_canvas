@@ -1,13 +1,12 @@
 const CONFIG = window.TRIP_CONFIG || {};
 const $ = id => document.getElementById(id);
-const params = new URLSearchParams(location.search);
 const SESSION_KEY = "tripcanvas-session-v1";
 const GEOCODE_CACHE_KEY = "tripcanvas-geocode-cache-v1";
 const DESKTOP_PANEL_KEY = "tripcanvas-desktop-panel-collapsed-v1";
 const TRIP_LIST_CACHE_MS = 60000;
 
 const state = {
-  tripId: params.get("trip") || "", hasJourney: Boolean(params.get("trip")), data: freshTrip(), dirty: false,
+  tripId: "", hasJourney: false, data: freshTrip(), dirty: false,
   token: localStorage.getItem(SESSION_KEY) || "", user: null, owner: "", tripCanEdit: false,
   map: null, markers: [], polylines: [], routeLine: null, mapsReady: false, lastGeocodeAt: 0, draggedStopId: "",
   tripsCache: null, tripsLoadedAt: 0, geocodeJobId: 0, geocodeCache: null
@@ -15,7 +14,7 @@ const state = {
 
 function freshTrip() {
   const today = new Date().toISOString().slice(0, 10);
-  return { schemaVersion: 4, trip: { title: "", startDate: today, endDate: today, description: "" }, stops: [] };
+  return { schemaVersion: 5, trip: { title: "", startDate: today, endDate: today, description: "", isPublic: false }, stops: [] };
 }
 function uid() { return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function escapeHtml(value = "") { return String(value).replace(/[&<>'"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c])); }
@@ -39,8 +38,8 @@ function normalizeTrip(input) {
   if (!input || typeof input !== "object") throw new Error("旅程檔格式不正確");
   const base = freshTrip(), trip = input.trip || input, stops = Array.isArray(input.stops) ? input.stops : [];
   return {
-    schemaVersion: 4,
-    trip: { title: String(trip.title || base.trip.title).slice(0, 120), startDate: String(trip.startDate || base.trip.startDate).slice(0, 10), endDate: String(trip.endDate || trip.startDate || base.trip.endDate).slice(0, 10), description: String(trip.description || "").slice(0, 2000) },
+    schemaVersion: 5,
+    trip: { title: String(trip.title || base.trip.title).slice(0, 120), startDate: String(trip.startDate || base.trip.startDate).slice(0, 10), endDate: String(trip.endDate || trip.startDate || base.trip.endDate).slice(0, 10), description: String(trip.description || "").slice(0, 2000), isPublic: typeof trip.isPublic === "boolean" ? trip.isPublic : base.trip.isPublic },
     stops: stops.slice(0, 500).map((s, index) => ({
       id: String(s.id || uid()), date: String(s.date || trip.startDate || base.trip.startDate).slice(0, 10), startTime: String(s.startTime || s.time || "").slice(0, 5), endTime: String(s.endTime || "").slice(0, 5),
       order: Number.isFinite(Number(s.order)) ? Number(s.order) : index, title: String(s.title || s.name || `項目 ${index + 1}`).slice(0, 100), address: String(s.address || "").slice(0, 300),
@@ -135,7 +134,7 @@ async function submitLogin(event) {
 async function logout() {
   if (state.dirty && !confirm("目前有未儲存變更，確定登出？")) return;
   state.token = ""; state.user = null; state.tripCanEdit = false; localStorage.removeItem(SESSION_KEY); renderAuth();
-  if (state.tripId) await loadTripById(state.tripId, false); else renderAll();
+  if (state.tripId && state.data.trip.isPublic) await loadTripById(state.tripId, false); else if (state.tripId) resetJourneyState("私人旅程已關閉"); else renderAll();
   await refreshTripList(true); toast("已登出，現在是訪客檢視模式");
 }
 async function refreshCurrentPermissions() { if (state.tripId) await loadTripById(state.tripId, false); else { state.tripCanEdit = Boolean(state.user); renderAll(); } }
@@ -147,11 +146,11 @@ async function loadTripById(id, updateUrl = true) {
     const result = await apiGet(id);
     state.geocodeJobId++;
     state.tripId = result.id; state.data = normalizeTrip(result.data); state.hasJourney = true; state.owner = result.owner || ""; state.tripCanEdit = Boolean(result.canEdit); state.dirty = false;
-    if (updateUrl) history.replaceState(null, "", `${location.pathname}?trip=${encodeURIComponent(state.tripId)}`);
-    $("dayFilter").value = "all"; setStatus(`已同步 ${formatTimestamp(result.updatedAt)}`); renderAll();
+    history.replaceState(null, "", location.pathname); $("tripPicker").open = false;
+    $("dayFilter").value = "all"; setStatus(`已同步 ${formatTimestamp(result.updatedAt)}`); renderAll(); updateSelectedTripInList();
   } catch (error) { setStatus("載入失敗"); toast(error.message); }
 }
-async function loadInitialTrip() { if (state.tripId) await loadTripById(state.tripId, false); else renderAll(); }
+async function loadInitialTrip() { if (location.search) history.replaceState(null, "", location.pathname); renderAll(); }
 
 async function saveTrip() {
   if (!state.user) return openLogin();
@@ -162,7 +161,7 @@ async function saveTrip() {
   try {
     const result = await apiPost({ action: creating ? "create" : "save", id: state.tripId, token: state.token, data: state.data });
     state.tripId = result.id; state.owner = result.owner; state.tripCanEdit = true; state.dirty = false;
-    history.replaceState(null, "", `${location.pathname}?trip=${encodeURIComponent(state.tripId)}`);
+    history.replaceState(null, "", location.pathname);
     setStatus(`已同步 ${formatTimestamp(result.updatedAt)}`); renderAll(); await refreshTripList(true); toast(creating ? "旅程已建立" : "旅程已儲存");
   } catch (error) { setStatus("儲存失敗"); toast(error.message); }
   finally { renderMode(); }
@@ -174,17 +173,17 @@ function syncMetaFromForm() { if (canEdit()) state.data.trip.title = $("tripTitl
 function syncFormFromState() {
   $("tripTitle").value = state.data.trip.title; $("viewTitle").textContent = state.data.trip.title || "尚未選擇旅程";
   $("viewDates").textContent = state.hasJourney ? [state.data.trip.startDate, state.data.trip.endDate].filter(Boolean).join(" — ") : "";
-  $("tripOwner").textContent = state.hasJourney ? `建立者：${state.owner || (state.tripId ? "舊版資料／待管理員接管" : state.user?.username || "尚未儲存")}` : "";
+  $("tripOwner").textContent = state.hasJourney ? `建立者：${state.owner || (state.tripId ? "舊版資料／待管理員接管" : state.user?.username || "尚未儲存")}・${state.data.trip.isPublic ? "公開旅程" : "私人旅程"}` : "";
 }
 function renderAll() { syncFormFromState(); renderMode(); renderFilters(); renderTimeline(); refreshMap(); }
 function renderMode() {
-  const editable = canEdit(); document.body.classList.toggle("read-only", !editable);
+  const editable = canEdit(); document.body.classList.toggle("read-only", !editable); document.body.classList.toggle("has-journey", state.hasJourney);
   $("addItemBtn").disabled = !editable; $("saveBtn").disabled = !editable; $("exportBtn").disabled = !state.hasJourney;
-  $("tripTitle").disabled = !editable; $("shareBtn").disabled = !state.tripId;
+  $("tripTitle").disabled = !editable; $("tripSettingsBtn").disabled = !state.hasJourney;
   $("cancelDraftBtn").hidden = !(state.user && state.hasJourney && !state.tripId);
   $("deleteTripBtn").hidden = !(state.tripId && editable);
   $("mobileTripTitle").textContent = state.data.trip.title || "行程面板";
-  $("emptyState").querySelector("p").textContent = state.user ? "請先新增旅程，再新增行程項目；也可以直接上傳旅程檔。" : "訪客可從上方『選擇旅程』檢視大家上傳的資料；登入後才能新增與編輯。";
+  $("emptyState").querySelector("p").textContent = state.user ? "請先新增旅程，再新增行程項目；也可以直接上傳旅程檔。" : "訪客可從上方『選擇旅程』檢視使用者公開的旅程；登入後才能新增與編輯。";
 }
 
 function renderFilters() {
@@ -197,7 +196,7 @@ function renderTimeline() {
   const groups = Object.groupBy ? Object.groupBy(stops, s => s.date || "未指定日期") : stops.reduce((g, s) => ((g[s.date || "未指定日期"] ||= []).push(s), g), {});
   timeline.innerHTML = Object.entries(groups).map(([date, items]) => `
     <section class="day-group" data-date="${escapeHtml(date)}"><div class="day-heading"><strong>${escapeHtml(formatDay(date))}</strong><span>${items.length} 個行程項目</span></div>
-    ${items.map(s => `<article class="stop-card" data-id="${escapeHtml(s.id)}" data-date="${escapeHtml(s.date)}" draggable="${canEdit()}" title="雙擊可在地圖上顯示">
+    ${items.map(s => `<article class="stop-card" data-id="${escapeHtml(s.id)}" data-date="${escapeHtml(s.date)}" draggable="${canEdit()}" title="單擊可在地圖上顯示">
       ${canEdit() ? `<div class="drag-handle" title="拖拉調整同日順序">⋮⋮</div>` : ""}<div class="stop-time">${escapeHtml(s.startTime || "—")}</div>
       <div class="stop-body"><h3>${escapeHtml(s.title)}</h3>${s.origin || s.destination ? `<p class="route-detail">${escapeHtml(s.origin || "—")} → ${escapeHtml(s.destination || "—")}</p>` : ""}${continuityHtml(s, stops)}${s.address ? `<p>${escapeHtml(s.address)}</p>` : ""}${s.cost ? `<p class="cost-detail">料金：${escapeHtml(s.cost)}</p>` : ""}${s.notes ? `<p>${escapeHtml(s.notes)}</p>` : ""}<span class="category">${escapeHtml(s.category)}</span>${s.transportMode ? `<span class="category">${escapeHtml(s.transportMode)}</span>` : ""}</div>
       <div class="stop-actions"><button class="small-btn" data-action="focus" title="在地圖顯示">⌖</button>${canEdit() ? `<button class="small-btn" data-action="edit" title="編輯">✎</button><button class="small-btn" data-action="delete" title="刪除">×</button>` : ""}</div>
@@ -209,14 +208,14 @@ function openNewTripDialog() {
   if (!state.user) return openLogin();
   if (state.dirty && !confirm("目前有未儲存變更，確定建立新的旅程？")) return;
   const today = new Date().toISOString().slice(0, 10);
-  $("newTripTitle").value = ""; $("newTripStartDate").value = today; $("newTripEndDate").value = today; $("newTripDescription").value = ""; $("newTripError").textContent = ""; $("newTripDialog").showModal();
+  $("newTripTitle").value = ""; $("newTripStartDate").value = today; $("newTripEndDate").value = today; $("newTripDescription").value = ""; $("newTripPublic").checked = false; $("newTripError").textContent = ""; $("newTripDialog").showModal();
 }
 function createJourney(event) {
   event.preventDefault(); const title = $("newTripTitle").value.trim(), startDate = $("newTripStartDate").value, endDate = $("newTripEndDate").value;
   if (!title || !startDate || !endDate) return $("newTripError").textContent = "請填寫旅程名稱與日期";
   if (endDate < startDate) return $("newTripError").textContent = "結束日期不可早於開始日期";
   state.geocodeJobId++; state.tripId = ""; state.hasJourney = true; state.owner = state.user.username; state.tripCanEdit = true;
-  state.data = normalizeTrip({ schemaVersion: 4, trip: { title, startDate, endDate, description: $("newTripDescription").value.trim() }, stops: [] }); state.dirty = true;
+  state.data = normalizeTrip({ schemaVersion: 5, trip: { title, startDate, endDate, description: $("newTripDescription").value.trim(), isPublic: $("newTripPublic").checked }, stops: [] }); state.dirty = true;
   history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; $("newTripDialog").close(); renderAll(); setStatus("新旅程（尚未儲存）"); toast("旅程已建立，現在可以新增行程項目");
 }
 function updateStopFormMode() {
@@ -387,18 +386,19 @@ function excelDate(value) { if (value instanceof Date) return value.toISOString(
 function excelTime(value) { if (value === "" || value == null) return ""; if (typeof value === "number") { const minutes = Math.round((value % 1) * 1440) % 1440; return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`; } if (value instanceof Date) return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`; const match = String(value).trim().match(/(\d{1,2}):(\d{2})/); return match ? `${match[1].padStart(2, "0")}:${match[2]}` : ""; }
 function inferCategory(type, title, origin, destination) { if (String(type || "").trim()) return normalizeCategory(type); const text = `${title} ${origin} ${destination}`; if (origin || destination || /自駕|開車|飛機|航班|CI\d+|JR|新幹線|特急|電車|市電|巴士|バス|Taxi|計程車|步行|接送|入境|到着|取車|還車/i.test(text)) return "移動"; if (/午餐|晚餐|早餐|用餐|餐廳|市場|食事|弁当|咖啡|拉麵|飯|料理/i.test(text)) return "食事"; if (/飯店|旅館|ホテル|宿|休息|休憩|入住|Check.?in/i.test(text)) return "休憩"; return "觀光"; }
 function inferTransportMode(title) { const text = String(title || ""); if (/自駕|開車|取車|還車/.test(text)) return "自駕"; if (/CI\d+|飛機|航班/.test(text)) return "飛機"; if (/JR|新幹線|特急|鉄道|鐵路/.test(text)) return "鐵路"; if (/市電/.test(text)) return "市電"; if (/巴士|バス|接送/.test(text)) return "巴士"; if (/Taxi|計程車/i.test(text)) return "計程車"; if (/步行/.test(text)) return "步行"; return ""; }
-function referenceRowsToTrip(rows, filename) { const stops = rows.map((row, index) => { const title = String(pickField(row, "項目", "item", "title", "地點名稱", "名稱") || "").trim(), origin = String(pickField(row, "起", "origin", "from", "起點") || "").trim(), destination = String(pickField(row, "迄", "destination", "to", "迄點") || "").trim(), type = pickField(row, "類型", "类型", "type", "category"); return { id: uid(), order: index, date: excelDate(pickField(row, "日期", "date")), startTime: excelTime(pickField(row, "啟程時間", "启程时间", "startTime", "starttime", "time", "開始時間")), endTime: excelTime(pickField(row, "到達時間", "到达时间", "endTime", "endtime", "結束時間")), title: title || destination || origin || "未命名項目", origin, destination, address: String(pickField(row, "地址", "address") || destination || origin || title).trim(), lat: finiteOrNull(pickField(row, "緯度", "lat", "latitude")), lng: finiteOrNull(pickField(row, "經度", "lng", "longitude")), originLat: finiteOrNull(pickField(row, "起點緯度", "originLat", "originlat")), originLng: finiteOrNull(pickField(row, "起點經度", "originLng", "originlng")), category: inferCategory(type, title, origin, destination), transportMode: String(pickField(row, "移動方式", "transportMode", "transportmode") || inferTransportMode(title)), cost: String(pickField(row, "料金", "費用", "cost", "fee") || "").trim(), notes: String(pickField(row, "備註", "notes", "note") || "").trim() }; }).filter(stop => stop.date || stop.title !== "未命名項目"); const dayOrders = new Map(); stops.forEach(stop => { const key = stop.date || ""; stop.order = dayOrders.get(key) || 0; if (stop.category === "移動") stop.address = ""; dayOrders.set(key, stop.order + 1); }); const dates = stops.map(s => s.date).filter(Boolean).sort(); return normalizeTrip({ schemaVersion: 4, trip: { title: filename.replace(/\.(xlsx?|csv)$/i, ""), startDate: dates[0], endDate: dates.at(-1), description: "由旅程檔案匯入" }, stops }); }
+function referenceRowsToTrip(rows, filename) { const stops = rows.map((row, index) => { const title = String(pickField(row, "項目", "item", "title", "地點名稱", "名稱") || "").trim(), origin = String(pickField(row, "起", "origin", "from", "起點") || "").trim(), destination = String(pickField(row, "迄", "destination", "to", "迄點") || "").trim(), type = pickField(row, "類型", "类型", "type", "category"); return { id: uid(), order: index, date: excelDate(pickField(row, "日期", "date")), startTime: excelTime(pickField(row, "啟程時間", "启程时间", "startTime", "starttime", "time", "開始時間")), endTime: excelTime(pickField(row, "到達時間", "到达时间", "endTime", "endtime", "結束時間")), title: title || destination || origin || "未命名項目", origin, destination, address: String(pickField(row, "地址", "address") || destination || origin || title).trim(), lat: finiteOrNull(pickField(row, "緯度", "lat", "latitude")), lng: finiteOrNull(pickField(row, "經度", "lng", "longitude")), originLat: finiteOrNull(pickField(row, "起點緯度", "originLat", "originlat")), originLng: finiteOrNull(pickField(row, "起點經度", "originLng", "originlng")), category: inferCategory(type, title, origin, destination), transportMode: String(pickField(row, "移動方式", "transportMode", "transportmode") || inferTransportMode(title)), cost: String(pickField(row, "料金", "費用", "cost", "fee") || "").trim(), notes: String(pickField(row, "備註", "notes", "note") || "").trim() }; }).filter(stop => stop.date || stop.title !== "未命名項目"); const dayOrders = new Map(); stops.forEach(stop => { const key = stop.date || ""; stop.order = dayOrders.get(key) || 0; if (stop.category === "移動") stop.address = ""; dayOrders.set(key, stop.order + 1); }); const dates = stops.map(s => s.date).filter(Boolean).sort(); return normalizeTrip({ schemaVersion: 5, trip: { title: filename.replace(/\.(xlsx?|csv)$/i, ""), startDate: dates[0], endDate: dates.at(-1), description: "由旅程檔案匯入", isPublic: false }, stops }); }
 async function importExcel(file) { if (!window.XLSX) throw new Error("Excel 解析元件尚未載入"); const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false }), firstSheet = workbook.Sheets[workbook.SheetNames[0]]; if (!firstSheet) throw new Error("Excel 沒有工作表"); const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: true }); if (!rows.length) throw new Error("Excel 沒有旅程資料"); return referenceRowsToTrip(rows, file.name); }
-async function importFile(file) { if (!state.user) return openLogin(); try { const lower = file.name.toLowerCase(); if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) state.data = await importExcel(file); else if (lower.endsWith(".json")) state.data = normalizeTrip(JSON.parse(await file.text())); else state.data = referenceRowsToTrip(parseCsv(await file.text()), file.name); state.tripId = ""; state.hasJourney = true; state.owner = state.user.username; state.tripCanEdit = true; const jobId = ++state.geocodeJobId; history.replaceState(null, "", location.pathname); renderAll(); markDirty(); toast(`已匯入 ${state.data.stops.length} 個行程項目，正在背景定位`); void locateImportedStops(jobId); } catch (error) { toast(`匯入失敗：${error.message}`); } finally { $("fileInput").value = ""; } }
+async function importFile(file) { if (!state.user) return openLogin(); try { const lower = file.name.toLowerCase(); if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) state.data = await importExcel(file); else if (lower.endsWith(".json")) state.data = normalizeTrip(JSON.parse(await file.text())); else state.data = referenceRowsToTrip(parseCsv(await file.text()), file.name); state.data.trip.isPublic = false; state.tripId = ""; state.hasJourney = true; state.owner = state.user.username; state.tripCanEdit = true; const jobId = ++state.geocodeJobId; history.replaceState(null, "", location.pathname); renderAll(); markDirty(); toast(`已匯入 ${state.data.stops.length} 個行程項目，預設為私人旅程，正在背景定位`); void locateImportedStops(jobId); } catch (error) { toast(`匯入失敗：${error.message}`); } finally { $("fileInput").value = ""; } }
 function exportJson() { if (!state.hasJourney) return toast("目前沒有可匯出的旅程"); syncMetaFromForm(); const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${state.data.trip.title || "trip"}.json`; a.click(); URL.revokeObjectURL(a.href); }
 
 function formatDay(date) { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date; return new Intl.DateTimeFormat("zh-TW", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`)); }
 function formatTimestamp(value) { if (!value) return ""; return new Intl.DateTimeFormat("zh-TW", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-function openShare() { if (!state.tripId) return toast("請先儲存旅程，再建立分享連結"); $("viewLink").value = `${location.origin}${location.pathname}?trip=${encodeURIComponent(state.tripId)}`; $("shareDialog").showModal(); }
+function openTripSettings() { if (!canEdit()) return toast("你沒有修改這個旅程設定的權限"); $("tripPublicToggle").checked = Boolean(state.data.trip.isPublic); $("tripSettingsDialog").showModal(); }
+async function submitTripSettings(event) { event.preventDefault(); state.data.trip.isPublic = $("tripPublicToggle").checked; markDirty(); $("tripSettingsDialog").close(); if (state.tripId) await saveTrip(); else { syncFormFromState(); toast("公開設定已套用，儲存旅程後生效"); } }
 
 function tripListItemHtml(item) {
-  const isDemo = item.source === "demo", permission = isDemo ? "示範" : item.canEdit ? "可編輯" : "檢視";
-  return `<button class="trip-list-item" type="button" data-trip-source="${isDemo ? "demo" : "saved"}" data-trip-id="${escapeHtml(item.id)}"><span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(" — "))}</p><p>${escapeHtml(`${item.stopCount || 0} 個項目${item.owner ? `・${item.owner}` : ""}${item.updatedAt ? `・更新 ${formatTimestamp(item.updatedAt)}` : ""}`)}</p></span><span class="trip-list-tag ${isDemo ? "demo" : item.canEdit ? "editable" : ""}">${permission}</span></button>`;
+  const isDemo = item.source === "demo", visibility = isDemo || item.isPublic ? "公開" : "私人", permission = isDemo ? "示範" : item.canEdit ? `${visibility}・可編輯` : visibility;
+  return `<button class="trip-list-item${!isDemo && item.id === state.tripId ? " selected" : ""}" type="button" data-trip-source="${isDemo ? "demo" : "saved"}" data-trip-id="${escapeHtml(item.id)}"><span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(" — "))}</p><p>${escapeHtml(`${item.stopCount || 0} 個項目${item.owner ? `・${item.owner}` : ""}${item.updatedAt ? `・更新 ${formatTimestamp(item.updatedAt)}` : ""}`)}</p></span><span class="trip-list-tag ${isDemo ? "demo" : item.isPublic ? "public" : "private"}">${permission}</span></button>`;
 }
 async function refreshTripList(force = false) {
   const demos = (window.TRIP_DEMOS || []).map(demo => ({ source: "demo", id: demo.id, title: demo.data.trip.title, startDate: demo.data.trip.startDate, endDate: demo.data.trip.endDate, stopCount: demo.data.stops.length }));
@@ -408,7 +408,7 @@ async function refreshTripList(force = false) {
   try { const result = await apiList(), saved = (result.trips || []).map(item => ({ ...item, source: "saved" })); state.tripsCache = saved; state.tripsLoadedAt = Date.now(); $("tripListContent").innerHTML = [...demos, ...saved].map(tripListItemHtml).join("") || `<p class="hint">尚無旅程。</p>`; }
   catch (error) { toast(`旅程清單讀取失敗：${error.message}`); }
 }
-function loadDemoTrip(id) { const demo = (window.TRIP_DEMOS || []).find(item => item.id === id); if (!demo) return toast("找不到示範旅程"); if (state.dirty && !confirm("目前有未儲存變更，確定載入示範旅程？")) return; state.geocodeJobId++; state.tripId = ""; state.hasJourney = true; state.owner = "示範資料"; state.tripCanEdit = Boolean(state.user); state.data = normalizeTrip(structuredClone(demo.data)); state.dirty = Boolean(state.user); history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; renderAll(); setStatus(state.user ? "示範資料（可另存新旅程）" : "示範資料（訪客檢視）"); toast(state.user ? "已載入示範旅程；儲存後會建立你的副本" : "已載入示範旅程資料"); }
+function loadDemoTrip(id) { const demo = (window.TRIP_DEMOS || []).find(item => item.id === id); if (!demo) return toast("找不到示範旅程"); if (state.dirty && !confirm("目前有未儲存變更，確定載入示範旅程？")) return; state.geocodeJobId++; state.tripId = ""; state.hasJourney = true; state.owner = "示範資料"; state.tripCanEdit = Boolean(state.user); state.data = normalizeTrip(structuredClone(demo.data)); state.data.trip.isPublic = true; state.dirty = Boolean(state.user); history.replaceState(null, "", location.pathname); $("tripPicker").open = false; $("dayFilter").value = "all"; renderAll(); setStatus(state.user ? "示範資料（可另存新旅程）" : "示範資料（訪客檢視）"); toast(state.user ? "已載入示範旅程；儲存後會建立你的副本" : "已載入示範旅程資料"); }
 function resetJourneyState(message) {
   state.geocodeJobId++; state.tripId = ""; state.hasJourney = false; state.owner = ""; state.tripCanEdit = false; state.data = freshTrip(); state.dirty = false;
   history.replaceState(null, "", location.pathname); $("dayFilter").value = "all"; renderAll(); setStatus("尚未選擇旅程"); if (message) toast(message);
@@ -418,6 +418,8 @@ function clearTripView() {
   if (state.dirty && !confirm("目前有未儲存變更，確定清空畫面？已上傳旅程不會被刪除。")) return;
   resetJourneyState("已清空畫面；已上傳旅程仍保留");
 }
+function updateSelectedTripInList() { document.querySelectorAll(".trip-list-item").forEach(item => item.classList.toggle("selected", item.dataset.tripSource === "saved" && item.dataset.tripId === state.tripId)); }
+async function showTripList() { if (matchMedia("(max-width: 820px)").matches) setMobilePanel(true); $("tripPicker").open = true; await refreshTripList(); $("tripPicker").scrollIntoView({ behavior: "smooth", block: "start" }); updateSelectedTripInList(); }
 function cancelDraft() {
   if (!state.hasJourney || state.tripId) return;
   if (!confirm(`確定放棄尚未儲存的旅程「${state.data.trip.title || "未命名旅程"}」？`)) return;
@@ -470,7 +472,7 @@ async function submitUser(event) { event.preventDefault(); $("userError").textCo
 function selectUserRow(button) { $("userUsername").value = button.dataset.username; $("userUsername").disabled = true; $("userRole").value = button.dataset.role; $("userActive").checked = button.dataset.active === "true"; $("userPassword").value = ""; $("userError").textContent = "編輯模式：密碼留白表示不變更"; }
 
 function bindEvents() {
-  $("tripTitle").addEventListener("input", autoRender); $("saveBtn").addEventListener("click", saveTrip); $("shareBtn").addEventListener("click", openShare); $("newTripBtn").addEventListener("click", openNewTripDialog); $("addItemBtn").addEventListener("click", () => openStopDialog());
+  $("tripTitle").addEventListener("input", autoRender); $("saveBtn").addEventListener("click", saveTrip); $("tripSettingsBtn").addEventListener("click", openTripSettings); $("tripSettingsForm").addEventListener("submit", submitTripSettings); $("backToTripsBtn").addEventListener("click", showTripList); $("newTripBtn").addEventListener("click", openNewTripDialog); $("addItemBtn").addEventListener("click", () => openStopDialog());
   $("stopCategory").addEventListener("change", updateStopFormMode);
   $("stopOrigin").addEventListener("input", () => { $("stopOriginLat").value = ""; $("stopOriginLng").value = ""; });
   $("stopDestination").addEventListener("input", () => { $("stopLat").value = ""; $("stopLng").value = ""; });

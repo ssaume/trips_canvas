@@ -13,7 +13,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span class="brand-copy"><strong>TripCanvas</strong><small>v1.5.4 · © ssaume</small></span></a>
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span class="brand-copy"><strong>TripCanvas</strong><small>v1.6.0 · © ssaume</small></span></a>
     <div class="top-actions">
       <span id="syncStatus" class="status-pill">尚未儲存</span>
       <span id="guestBadge" class="guest-badge">訪客模式</span>
@@ -21,7 +21,7 @@
       <button id="saveBtn" class="btn primary write-only" type="button">儲存</button>
       <button id="cancelDraftBtn" class="btn ghost" type="button" hidden>放棄草稿</button>
       <button id="deleteTripBtn" class="btn danger" type="button" hidden>刪除旅程</button>
-      <button id="shareBtn" class="btn ghost" type="button">分享</button>
+      <button id="tripSettingsBtn" class="btn ghost write-only" type="button">旅程設定</button>
       <button id="adminBtn" class="btn ghost admin-only" type="button">帳號管理</button>
       <button id="accountBtn" class="btn ghost auth-only" type="button"></button>
       <button id="loginBtn" class="btn primary guest-only" type="button">登入</button>
@@ -36,6 +36,7 @@
         <button id="mobilePanelToggleBtn" class="btn ghost" type="button">收合</button>
       </div>
       <div class="trip-heading">
+        <button id="backToTripsBtn" class="back-to-trips" type="button">← 返回旅程清單</button>
         <p class="eyebrow">YOUR JOURNEY</p>
         <input id="tripTitle" class="title-input editor-control" value="" aria-label="旅程名稱" placeholder="請先新增或載入旅程">
         <h1 id="viewTitle" class="view-title">尚未選擇旅程</h1>
@@ -51,7 +52,7 @@
       </div>
 
       <details id="tripPicker" class="trip-picker" open>
-        <summary><span>☰</span><span><strong>選擇旅程</strong><small>示範與大家上傳的旅程</small></span><span class="chevron">⌄</span></summary>
+        <summary><span>☰</span><span><strong>選擇旅程</strong><small>示範、公開旅程與自己的私人旅程</small></span><span class="chevron">⌄</span></summary>
         <div class="trip-picker-tools"><button id="refreshTripsBtn" class="btn ghost" type="button">重新整理</button><button id="clearTripViewBtn" class="btn ghost clear-trip-btn" type="button">清空顯示</button></div>
         <div id="tripListContent" class="trip-list-content"><p class="hint">載入中…</p></div>
       </details>
@@ -87,6 +88,7 @@
         <label>開始日期<input id="newTripStartDate" required type="date"></label>
         <label>結束日期<input id="newTripEndDate" required type="date"></label>
         <label class="span-2">旅程說明（選填）<textarea id="newTripDescription" rows="3" maxlength="2000"></textarea></label>
+        <label class="checkbox-label span-2"><input id="newTripPublic" type="checkbox"> 公開旅程（訪客可在旅程清單中看到）</label>
       </div>
       <p id="newTripError" class="form-error"></p>
       <div class="dialog-actions"><button class="btn ghost" type="button" data-close="newTripDialog">取消</button><button class="btn primary" type="submit">建立旅程</button></div>
@@ -119,12 +121,13 @@
     </form>
   </dialog>
 
-  <dialog id="shareDialog">
-    <div class="share-card">
-      <div class="dialog-head"><div><p class="eyebrow">SHARE TRIP</p><h2>分享行程</h2></div><button class="icon-btn" data-close="shareDialog">×</button></div>
-      <label>檢視連結<div class="copy-row"><input id="viewLink" readonly><button class="btn ghost" data-copy="viewLink">複製</button></div></label>
-      <p class="hint">所有人都能使用此連結檢視；只有旅程擁有者或管理員登入後可以編輯。</p>
-    </div>
+  <dialog id="tripSettingsDialog">
+    <form id="tripSettingsForm" class="share-card" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">JOURNEY SETTINGS</p><h2>旅程設定</h2></div><button class="icon-btn" type="button" data-close="tripSettingsDialog">×</button></div>
+      <label class="checkbox-label"><input id="tripPublicToggle" type="checkbox"> 將這個旅程設為公開</label>
+      <p class="hint">公開後，未登入訪客可以從旅程清單看到並檢視；私人旅程只有建立者與管理員可以看到。</p>
+      <div class="dialog-actions"><button class="btn ghost" type="button" data-close="tripSettingsDialog">取消</button><button class="btn primary" type="submit">儲存設定</button></div>
+    </form>
   </dialog>
 
   <dialog id="loginDialog">
