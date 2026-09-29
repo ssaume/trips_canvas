@@ -229,7 +229,9 @@ function openNewTripDialog() {
   $("newTripTitle").value = ""; $("newTripStartDate").value = today; $("newTripEndDate").value = today; $("newTripDescription").value = ""; $("newTripPublic").checked = false; $("newTripError").textContent = ""; $("newTripDialog").showModal();
 }
 function createJourney(event) {
-  event.preventDefault(); const title = $("newTripTitle").value.trim(), startDate = $("newTripStartDate").value, endDate = $("newTripEndDate").value;
+  event.preventDefault();
+  if (!state.user) { $("newTripDialog").close(); openLogin(); return; }
+  const title = $("newTripTitle").value.trim(), startDate = $("newTripStartDate").value, endDate = $("newTripEndDate").value;
   if (!title || !startDate || !endDate) return $("newTripError").textContent = "請填寫旅程名稱與日期";
   if (endDate < startDate) return $("newTripError").textContent = "結束日期不可早於開始日期";
   state.geocodeJobId++; state.tripId = ""; state.hasJourney = true; state.owner = state.user.username; state.tripCanEdit = true;

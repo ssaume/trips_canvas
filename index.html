@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#17324d">
   <title>TripCanvas 行程地圖</title>
+  <link rel="icon" type="image/png" href="assets/tripcanvas-logo.png">
+  <link rel="apple-touch-icon" href="assets/tripcanvas-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
@@ -13,7 +15,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="TripCanvas 首頁"><span class="brand-mark">T</span><span class="brand-copy"><strong>TripCanvas</strong><small>v1.7.0 · © ssaume</small></span></a>
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><img class="brand-logo" src="assets/tripcanvas-logo.png" alt=""><span class="brand-copy"><strong>TripCanvas</strong><small>v1.7.1 · © ssaume</small></span></a>
     <div class="top-actions">
       <span id="syncStatus" class="status-pill">尚未儲存</span>
       <span id="guestBadge" class="guest-badge">訪客模式</span>
@@ -46,7 +48,8 @@
 
       <div class="toolbar write-only">
         <button id="addItemBtn" class="btn ghost" type="button">＋ 新增行程項目</button>
-        <label class="btn ghost file-btn">上傳行程<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
+        <a id="downloadTemplateBtn" class="btn ghost" href="assets/tripcanvas_excel_template_v1_7_1.xlsx" download>下載 Excel 範本</a>
+        <label class="btn ghost file-btn" title="也支援 CSV 與 JSON">上傳 Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
         <button id="exportBtn" class="btn ghost" type="button">匯出 JSON</button>
         <span class="drag-hint">☷ 登入後可拖拉調整同日順序</span>
       </div>
