@@ -3,16 +3,18 @@ window.TRIP_DEMOS = [
     id: "demo-shikoku-2026",
     label: "示範旅程資料",
     data: {
-      schemaVersion: 4,
+      schemaVersion: 7,
       trip: {
         title: "示範旅程資料",
         startDate: "2026-09-25",
         endDate: "2026-09-28",
-        description: "CI278／CI179；OMO7 高知一晚、ダイワロイネットホテル松山兩晚。南国SA找玩偶，並收集高知城、岡豊城、大洲城、松山城、湯築城、今治城。"
+        description: "CI278／CI179；包含旅程出發點、移動 A→B 與更換運輸方式所需的中繼節點。",
+        isPublic: true,
+        startPoint: { name: "桃園國際機場 TPE", address: "桃園國際機場", lat: 25.0797, lng: 121.2342 }
       },
       stops: [
         { id:"d01",date:"2026-09-25",startTime:"06:55",endTime:"10:30",title:"CI278｜桃園→高松",category:"移動",transportMode:"飛機",origin:"桃園國際機場 TPE",originLat:25.0797,originLng:121.2342,destination:"高松空港 TAK",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"抵達後辦理入境與取車。" },
-        { id:"d02",date:"2026-09-25",startTime:"10:30",endTime:"11:40",title:"入境・取車・補給",category:"休憩",transportMode:"",origin:"",destination:"",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"取車後先確認南国SA下行玩偶庫存。" },
+        { id:"d02",date:"2026-09-25",startTime:"10:30",endTime:"11:40",title:"中繼｜高松空港入境・取車",category:"中繼",transportMode:"",origin:"",destination:"",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"由飛機改為自駕；完成入境、取車與補給。" },
         { id:"d03",date:"2026-09-25",startTime:"11:40",endTime:"12:45",title:"自駕｜高松空港→豊浜SA",category:"移動",transportMode:"自駕",origin:"高松空港",destination:"豊浜SA 下り",address:"豊浜サービスエリア 下り",lat:34.0347,lng:133.6418,cost:"高速公路費另計",notes:"走高松西IC、E11；避免在高松市區停留。" },
         { id:"d04",date:"2026-09-25",startTime:"12:45",endTime:"13:05",title:"豊浜SA 短休",category:"休憩",transportMode:"",origin:"",destination:"",address:"豊浜サービスエリア 下り",lat:34.0347,lng:133.6418,cost:"",notes:"洗手間、飲料與簡單補給，不安排正式午餐。" },
         { id:"d05",date:"2026-09-25",startTime:"13:05",endTime:"14:00",title:"自駕｜豊浜SA→南国SA下行",category:"移動",transportMode:"自駕",origin:"豊浜SA 下り",destination:"南国SA 下り",address:"南国サービスエリア 下り",lat:33.6068,lng:133.6268,cost:"高速公路費另計",notes:"經川之江JCT進入高知道。" },
@@ -20,6 +22,7 @@ window.TRIP_DEMOS = [
         { id:"d07",date:"2026-09-25",startTime:"14:40",endTime:"15:00",title:"自駕｜南国SA→岡豊城",category:"移動",transportMode:"自駕",origin:"南国SA 下り",destination:"高知県立歴史民俗資料館",address:"高知県立歴史民俗資料館",lat:33.5946,lng:133.6224,cost:"",notes:"玩偶成功購得時採此主線；未購得則改往須崎。" },
         { id:"d08",date:"2026-09-25",startTime:"15:00",endTime:"16:20",title:"岡豊城・歷史民俗資料館",category:"觀光",transportMode:"",origin:"",destination:"",address:"高知県立歴史民俗資料館",lat:33.5946,lng:133.6224,cost:"",notes:"續日本100名城 No.180；先蓋章，再依雨勢走主要曲輪。" },
         { id:"d09",date:"2026-09-25",startTime:"16:20",endTime:"17:00",title:"自駕｜岡豊城→OMO7 高知",category:"移動",transportMode:"自駕",origin:"高知県立歴史民俗資料館",destination:"OMO7 高知",address:"OMO7 高知 by 星野リゾート",lat:33.5579,lng:133.5488,cost:"",notes:"抵達後先停車、辦理入住與放行李。" },
+        { id:"d09b",date:"2026-09-25",startTime:"17:00",endTime:"17:30",title:"中繼｜OMO7 高知停車・入住",category:"中繼",transportMode:"",origin:"",destination:"",address:"OMO7 高知 by 星野リゾート",lat:33.5579,lng:133.5488,cost:"",notes:"由自駕改為市電／計程車；停車、入住並放置行李。" },
         { id:"d10",date:"2026-09-25",startTime:"17:30",endTime:"18:00",title:"OMO7→ひろめ市場",category:"移動",transportMode:"市電／計程車",origin:"OMO7 高知",destination:"ひろめ市場",address:"ひろめ市場",lat:33.5607,lng:133.5310,cost:"",notes:"飯店距菜園場町站步行約5分鐘。" },
         { id:"d11",date:"2026-09-25",startTime:"18:00",endTime:"19:30",title:"ひろめ市場晚餐",category:"食事",transportMode:"",origin:"",destination:"",address:"ひろめ市場",lat:33.5607,lng:133.5310,cost:"",notes:"鰹魚半敲燒、土佐卷或土佐赤牛。" },
         { id:"d12",date:"2026-09-25",startTime:"20:00",endTime:"",title:"OMO7 高知",category:"休憩",transportMode:"",origin:"",destination:"",address:"OMO7 高知 by 星野リゾート",lat:33.5579,lng:133.5488,cost:"",notes:"第一晚住宿。" },

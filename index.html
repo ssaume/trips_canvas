@@ -15,7 +15,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="TripCanvas 首頁"><img class="brand-logo" src="assets/tripcanvas-logo.png" alt=""><span class="brand-copy"><strong>TripCanvas</strong><small>v1.7.1 · © ssaume</small></span></a>
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><img class="brand-logo" src="assets/tripcanvas-logo.png" alt=""><span class="brand-copy"><strong>TripCanvas</strong><small>v1.7.2 · © ssaume</small></span></a>
     <div class="top-actions">
       <span id="syncStatus" class="status-pill">尚未儲存</span>
       <span id="guestBadge" class="guest-badge">訪客模式</span>
@@ -43,15 +43,17 @@
         <input id="tripTitle" class="title-input editor-control" value="" aria-label="旅程名稱" placeholder="請先新增或載入旅程">
         <h1 id="viewTitle" class="view-title">尚未選擇旅程</h1>
         <p id="viewDates" class="view-dates"></p>
+        <p id="tripStartPoint" class="trip-owner"></p>
         <p id="tripOwner" class="trip-owner"></p>
       </div>
 
-      <div class="toolbar write-only">
-        <button id="addItemBtn" class="btn ghost" type="button">＋ 新增行程項目</button>
-        <a id="downloadTemplateBtn" class="btn ghost" href="assets/tripcanvas_excel_template_v1_7_1.xlsx" download>下載 Excel 範本</a>
-        <label class="btn ghost file-btn" title="也支援 CSV 與 JSON">上傳 Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
-        <button id="exportBtn" class="btn ghost" type="button">匯出 JSON</button>
-        <span class="drag-hint">☷ 登入後可拖拉調整同日順序</span>
+      <div class="toolbar">
+        <button id="addItemBtn" class="btn ghost write-only" type="button">＋ 新增行程項目</button>
+        <a id="downloadTemplateBtn" class="btn ghost write-only" href="assets/tripcanvas_excel_template_v1_7_2.xlsx" download>下載 Excel 範本</a>
+        <label class="btn ghost file-btn write-only" title="也支援 CSV 與 JSON">上傳 Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
+        <button id="exportBtn" class="btn ghost write-only" type="button">匯出 JSON</button>
+        <button id="downloadTripBtn" class="btn ghost" type="button">下載此旅程 Excel</button>
+        <span class="drag-hint write-only">☷ 登入後可拖拉調整同日順序</span>
       </div>
 
       <details id="tripPicker" class="trip-picker" open>
@@ -90,6 +92,8 @@
         <label class="span-2">旅程名稱<input id="newTripTitle" required maxlength="120" placeholder="例如：四國自駕 4 日"></label>
         <label>開始日期<input id="newTripStartDate" required type="date"></label>
         <label>結束日期<input id="newTripEndDate" required type="date"></label>
+        <label>出發點（必填）<input id="newTripStartPoint" required maxlength="200" placeholder="例如：桃園國際機場 TPE"></label>
+        <label>出發點確認地址（選填）<input id="newTripStartPointAddress" maxlength="300" placeholder="例如：桃園市大園區航站南路9號"></label>
         <label class="span-2">旅程說明（選填）<textarea id="newTripDescription" rows="3" maxlength="2000"></textarea></label>
         <label class="checkbox-label span-2"><input id="newTripPublic" type="checkbox"> 公開旅程（訪客可在旅程清單中看到）</label>
       </div>
@@ -107,7 +111,7 @@
         <label>日期<input id="stopDate" required type="date"></label>
         <label>開始時間<input id="stopTime" type="time"></label>
         <label>結束時間<input id="stopEndTime" type="time"></label>
-        <label>類型<select id="stopCategory"><option>移動</option><option>休憩</option><option>觀光</option><option>食事</option></select></label>
+        <label>類型<select id="stopCategory"><option>移動</option><option>中繼</option><option>休憩</option><option>觀光</option><option>食事</option></select></label>
         <label>移動方式<select id="stopTransportMode"><option value="">不指定</option><option>自駕</option><option>飛機</option><option>鐵路</option><option>巴士</option><option>市電</option><option>計程車</option><option>步行</option><option>其他</option></select></label>
         <label class="movement-only">A 點（起點）<input id="stopOrigin" maxlength="200" placeholder="例如：OMO5 熊本"></label>
         <label class="movement-only">B 點（終點）<input id="stopDestination" maxlength="200" placeholder="例如：高千穗神社"></label>
@@ -127,6 +131,8 @@
   <dialog id="tripSettingsDialog">
     <form id="tripSettingsForm" class="share-card" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">JOURNEY SETTINGS</p><h2>旅程設定</h2></div><button class="icon-btn" type="button" data-close="tripSettingsDialog">×</button></div>
+      <label>出發點（必填）<input id="tripStartPointInput" required maxlength="200" placeholder="例如：桃園國際機場 TPE"></label>
+      <label>出發點確認地址（選填）<input id="tripStartPointAddressInput" maxlength="300" placeholder="用於地圖定位"></label>
       <label class="checkbox-label"><input id="tripPublicToggle" type="checkbox"> 將這個旅程設為公開</label>
       <p class="hint">公開後，未登入訪客可以從旅程清單看到並檢視；私人旅程只有建立者與管理員可以看到。</p>
       <div class="dialog-actions"><button class="btn ghost" type="button" data-close="tripSettingsDialog">取消</button><button class="btn primary" type="submit">儲存設定</button></div>
