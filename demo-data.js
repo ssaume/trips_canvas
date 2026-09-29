@@ -1,14 +1,14 @@
 window.TRIP_DEMOS = [
   {
     id: "demo-shikoku-2026",
-    label: "示範旅程資料",
+    label: "四國自駕｜示範旅程資料",
     data: {
       schemaVersion: 7,
       trip: {
-        title: "示範旅程資料",
+        title: "四國自駕｜示範旅程資料",
         startDate: "2026-09-25",
         endDate: "2026-09-28",
-        description: "CI278／CI179；包含旅程出發點、移動 A→B 與更換運輸方式所需的中繼節點。",
+        description: "2026/9/25～9/28 四國自駕示範：高松進出，前往高知、松山與今治；包含旅程出發點、移動 A→B 與更換運輸方式所需的中繼節點。",
         isPublic: true,
         startPoint: { name: "桃園國際機場 TPE", address: "桃園國際機場", lat: 25.0797, lng: 121.2342 }
       },
