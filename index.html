@@ -15,7 +15,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="TripCanvas 首頁"><img class="brand-logo" src="assets/tripcanvas-logo.png" alt=""><span class="brand-copy"><strong>TripCanvas</strong><small>v1.7.2 · © ssaume</small></span></a>
+    <a class="brand" href="./" aria-label="TripCanvas 首頁"><img class="brand-logo" src="assets/tripcanvas-logo.png" alt=""><span class="brand-copy"><strong>TripCanvas</strong><small>v1.7.3 · © ssaume</small></span></a>
     <div class="top-actions">
       <span id="syncStatus" class="status-pill">尚未儲存</span>
       <span id="guestBadge" class="guest-badge">訪客模式</span>
@@ -49,7 +49,7 @@
 
       <div class="toolbar">
         <button id="addItemBtn" class="btn ghost write-only" type="button">＋ 新增行程項目</button>
-        <a id="downloadTemplateBtn" class="btn ghost write-only" href="assets/tripcanvas_excel_template_v1_7_2.xlsx" download>下載 Excel 範本</a>
+        <a id="downloadTemplateBtn" class="btn ghost write-only" href="assets/tripcanvas_excel_template_v1_7_3.xlsx" download>下載 Excel 範本</a>
         <label class="btn ghost file-btn write-only" title="也支援 CSV 與 JSON">上傳 Excel<input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
         <button id="exportBtn" class="btn ghost write-only" type="button">匯出 JSON</button>
         <button id="downloadTripBtn" class="btn ghost" type="button">下載此旅程 Excel</button>
@@ -93,7 +93,8 @@
         <label>開始日期<input id="newTripStartDate" required type="date"></label>
         <label>結束日期<input id="newTripEndDate" required type="date"></label>
         <label>出發點（必填）<input id="newTripStartPoint" required maxlength="200" placeholder="例如：桃園國際機場 TPE"></label>
-        <label>出發點確認地址（選填）<input id="newTripStartPointAddress" maxlength="300" placeholder="例如：桃園市大園區航站南路9號"></label>
+        <label class="location-field">出發點地址或關鍵字（選填）<input id="newTripStartPointAddress" maxlength="300" autocomplete="off" aria-autocomplete="list" aria-controls="newTripStartPointSuggestions" placeholder="輸入後可從地圖候選清單選擇"><span id="newTripStartPointSuggestions" class="location-suggestions" role="listbox"></span></label>
+        <input id="newTripStartPointLat" type="hidden"><input id="newTripStartPointLng" type="hidden">
         <label class="span-2">旅程說明（選填）<textarea id="newTripDescription" rows="3" maxlength="2000"></textarea></label>
         <label class="checkbox-label span-2"><input id="newTripPublic" type="checkbox"> 公開旅程（訪客可在旅程清單中看到）</label>
       </div>
@@ -109,15 +110,16 @@
       <div class="form-grid">
         <label class="span-2">項目名稱<input id="stopTitle" required maxlength="100" placeholder="例如：高知城／自駕前往高松空港"></label>
         <label>日期<input id="stopDate" required type="date"></label>
-        <label>開始時間<input id="stopTime" type="time"></label>
-        <label>結束時間<input id="stopEndTime" type="time"></label>
-        <label>類型<select id="stopCategory"><option>移動</option><option>中繼</option><option>休憩</option><option>觀光</option><option>食事</option></select></label>
-        <label>移動方式<select id="stopTransportMode"><option value="">不指定</option><option>自駕</option><option>飛機</option><option>鐵路</option><option>巴士</option><option>市電</option><option>計程車</option><option>步行</option><option>其他</option></select></label>
-        <label class="movement-only">A 點（起點）<input id="stopOrigin" maxlength="200" placeholder="例如：OMO5 熊本"></label>
-        <label class="movement-only">B 點（終點）<input id="stopDestination" maxlength="200" placeholder="例如：高千穗神社"></label>
+        <div class="time-field"><span>開始時間</span><div class="time-selects"><select id="stopStartHour" aria-label="開始小時"></select><b>:</b><select id="stopStartMinute" aria-label="開始分鐘"></select></div></div>
+        <div class="time-field"><span>結束時間</span><div class="time-selects"><select id="stopEndHour" aria-label="結束小時"></select><b>:</b><select id="stopEndMinute" aria-label="結束分鐘"></select></div><div class="duration-presets"><button type="button" data-duration="30">＋30 分</button><button type="button" data-duration="60">＋60 分</button><button type="button" data-duration="90">＋90 分</button></div></div>
+        <input id="stopTime" type="hidden"><input id="stopEndTime" type="hidden">
+        <label>類型<select id="stopCategory"><option>起點</option><option>移動</option><option>中繼</option><option>休憩</option><option>觀光</option><option>食事</option><option>終點</option></select></label>
+        <label id="stopTransportModeField">移動方式<select id="stopTransportMode"><option value="">不指定</option><option>自駕</option><option>飛機</option><option>鐵路</option><option>巴士</option><option>市電</option><option>計程車</option><option>步行</option><option>其他</option></select></label>
+        <label class="movement-only location-field">A 點（起點）<input id="stopOrigin" maxlength="200" autocomplete="off" aria-autocomplete="list" aria-controls="stopOriginSuggestions" placeholder="輸入關鍵字後選擇候選地點"><span id="stopOriginSuggestions" class="location-suggestions" role="listbox"></span></label>
+        <label class="movement-only location-field">B 點（終點）<input id="stopDestination" maxlength="200" autocomplete="off" aria-autocomplete="list" aria-controls="stopDestinationSuggestions" placeholder="選擇後會自動建立編號節點"><span id="stopDestinationSuggestions" class="location-suggestions" role="listbox"></span></label>
         <label class="movement-only">A 點緯度（選填）<input id="stopOriginLat" type="number" step="any"></label>
         <label class="movement-only">A 點經度（選填）<input id="stopOriginLng" type="number" step="any"></label>
-        <label id="stopAddressField" class="span-2">地址或地點關鍵字<input id="stopAddress" placeholder="觀光、休憩、食事項目使用；儲存時會自動定位"></label>
+        <label id="stopAddressField" class="span-2 location-field">地址或地點關鍵字<input id="stopAddress" autocomplete="off" aria-autocomplete="list" aria-controls="stopAddressSuggestions" placeholder="輸入關鍵字後可從地圖候選清單選擇"><span id="stopAddressSuggestions" class="location-suggestions" role="listbox"></span></label>
         <label>B 點／地點緯度（選填）<input id="stopLat" type="number" step="any"></label>
         <label>B 點／地點經度（選填）<input id="stopLng" type="number" step="any"></label>
         <label class="span-2">料金／費用<input id="stopCost" maxlength="100" placeholder="例如：¥1,500、使用 PASS、高速公路費另計"></label>
@@ -132,7 +134,8 @@
     <form id="tripSettingsForm" class="share-card" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">JOURNEY SETTINGS</p><h2>旅程設定</h2></div><button class="icon-btn" type="button" data-close="tripSettingsDialog">×</button></div>
       <label>出發點（必填）<input id="tripStartPointInput" required maxlength="200" placeholder="例如：桃園國際機場 TPE"></label>
-      <label>出發點確認地址（選填）<input id="tripStartPointAddressInput" maxlength="300" placeholder="用於地圖定位"></label>
+      <label class="location-field">出發點地址或關鍵字（選填）<input id="tripStartPointAddressInput" maxlength="300" autocomplete="off" aria-autocomplete="list" aria-controls="tripStartPointSuggestions" placeholder="輸入後可從地圖候選清單選擇"><span id="tripStartPointSuggestions" class="location-suggestions" role="listbox"></span></label>
+      <input id="tripStartPointLatInput" type="hidden"><input id="tripStartPointLngInput" type="hidden">
       <label class="checkbox-label"><input id="tripPublicToggle" type="checkbox"> 將這個旅程設為公開</label>
       <p class="hint">公開後，未登入訪客可以從旅程清單看到並檢視；私人旅程只有建立者與管理員可以看到。</p>
       <div class="dialog-actions"><button class="btn ghost" type="button" data-close="tripSettingsDialog">取消</button><button class="btn primary" type="submit">儲存設定</button></div>

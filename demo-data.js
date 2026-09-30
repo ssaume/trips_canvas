@@ -3,16 +3,17 @@ window.TRIP_DEMOS = [
     id: "demo-shikoku-2026",
     label: "四國自駕｜示範旅程資料",
     data: {
-      schemaVersion: 7,
+      schemaVersion: 8,
       trip: {
         title: "四國自駕｜示範旅程資料",
         startDate: "2026-09-25",
         endDate: "2026-09-28",
-        description: "2026/9/25～9/28 四國自駕示範：高松進出，前往高知、松山與今治；包含旅程出發點、移動 A→B 與更換運輸方式所需的中繼節點。",
+        description: "2026/9/25～9/28 四國自駕示範：桃園 00 起點、高松進出，前往高知、松山與今治；每筆移動的 B 點會成為下一個編號節點，最後回到桃園終點。",
         isPublic: true,
         startPoint: { name: "桃園國際機場 TPE", address: "桃園國際機場", lat: 25.0797, lng: 121.2342 }
       },
       stops: [
+        { id:"d00",date:"2026-09-25",startTime:"06:00",endTime:"06:55",title:"桃園國際機場 TPE",category:"起點",transportMode:"",origin:"",destination:"",address:"桃園國際機場",confirmedAddress:"桃園國際機場",lat:25.0797,lng:121.2342,cost:"",notes:"旅程 00 起點；辦理報到與出境。" },
         { id:"d01",date:"2026-09-25",startTime:"06:55",endTime:"10:30",title:"CI278｜桃園→高松",category:"移動",transportMode:"飛機",origin:"桃園國際機場 TPE",originLat:25.0797,originLng:121.2342,destination:"高松空港 TAK",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"抵達後辦理入境與取車。" },
         { id:"d02",date:"2026-09-25",startTime:"10:30",endTime:"11:40",title:"中繼｜高松空港入境・取車",category:"中繼",transportMode:"",origin:"",destination:"",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"由飛機改為自駕；完成入境、取車與補給。" },
         { id:"d03",date:"2026-09-25",startTime:"11:40",endTime:"12:45",title:"自駕｜高松空港→豊浜SA",category:"移動",transportMode:"自駕",origin:"高松空港",destination:"豊浜SA 下り",address:"豊浜サービスエリア 下り",lat:34.0347,lng:133.6418,cost:"高速公路費另計",notes:"走高松西IC、E11；避免在高松市區停留。" },
@@ -60,7 +61,8 @@ window.TRIP_DEMOS = [
         { id:"d41",date:"2026-09-28",startTime:"14:10",endTime:"15:50",title:"自駕｜西條→高松空港",category:"移動",transportMode:"自駕",origin:"伊予西条駅",destination:"高松空港",address:"高松空港",lat:34.2142,lng:134.0156,cost:"高速公路費另計",notes:"走松山道、高松道；途中非必要不停靠。" },
         { id:"d42",date:"2026-09-28",startTime:"15:50",endTime:"16:20",title:"加油・還車",category:"移動",transportMode:"自駕",origin:"高松空港附近加油站",destination:"高松空港租車櫃檯",address:"高松空港",lat:34.2142,lng:134.0156,cost:"油資另計",notes:"預留還車與接駁時間。" },
         { id:"d43",date:"2026-09-28",startTime:"16:20",endTime:"18:20",title:"機場報到・晚餐・購物",category:"食事",transportMode:"",origin:"",destination:"",address:"高松空港",lat:34.2142,lng:134.0156,cost:"",notes:"完成報到後再用餐與採買。" },
-        { id:"d44",date:"2026-09-28",startTime:"19:05",endTime:"20:55",title:"CI179｜高松→桃園",category:"移動",transportMode:"飛機",origin:"高松空港 TAK",destination:"桃園國際機場 TPE",address:"桃園國際機場",lat:25.0797,lng:121.2342,cost:"",notes:"返回台灣。" }
+        { id:"d44",date:"2026-09-28",startTime:"19:05",endTime:"20:55",title:"CI179｜高松→桃園",category:"移動",transportMode:"飛機",origin:"高松空港 TAK",destination:"桃園國際機場 TPE",address:"桃園國際機場",lat:25.0797,lng:121.2342,cost:"",notes:"返回台灣。" },
+        { id:"d45",date:"2026-09-28",startTime:"20:55",endTime:"",title:"桃園國際機場 TPE｜旅程終點",category:"終點",transportMode:"",origin:"",destination:"",address:"桃園國際機場",confirmedAddress:"桃園國際機場",lat:25.0797,lng:121.2342,cost:"",notes:"旅程終點。" }
       ]
     }
   }
